@@ -3,5 +3,38 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
+    "smarty": {
+      "projectType": "library",
+      "root": "projects/smarty",
+      "sourceRoot": "projects/smarty/src",
+      "prefix": "lib",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:ng-packagr",
+          "options": {
+            "project": "projects/smarty/ng-package.json"
+          },
+          "configurations": {
+            "production": {
+              "tsConfig": "projects/smarty/tsconfig.lib.prod.json"
+            },
+            "development": {
+              "tsConfig": "projects/smarty/tsconfig.lib.json"
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "test": {
+          "builder": "@angular-devkit/build-angular:karma",
+          "options": {
+            "tsConfig": "projects/smarty/tsconfig.spec.json",
+            "polyfills": [
+              "zone.js",
+              "zone.js/testing"
+            ]
+          }
+        }
+      }
+    }
   }
 }
