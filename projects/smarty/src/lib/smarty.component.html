@@ -1,0 +1,48 @@
+<div class="chat-container">
+    <div class="chat-header d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center justify-content-start">
+            <mat-icon class="me-2">message</mat-icon>
+            <h2 class="mb-0 me-1">Chat with Smarty</h2>
+            <span class="badge rounded-pill text-bg-warning">
+                beta
+                <span class="visually-hidden">beta version</span>
+            </span>
+        </div>
+        <mat-icon (click)="openHelpDialog()">help_outline</mat-icon>
+    </div>
+
+    <div class="chat-body" #chatBody>
+        <div class="message" [ngClass]="{'mine': message.isMine, 'smarty': !message.isMine}"
+            *ngFor="let message of messages">
+            <div class="profile">
+                <img [src]="message.isMine ? 'assets/images/user.jpg' : 'assets/images/smarty.jpg'" alt="Profile">
+                <span class="username">{{ message.isMine ? 'you' : 'smarty' }}</span>
+            </div>
+            <div class="message-content px-2">
+                <span>{{ message.text }}</span>
+                <div class="message-time">
+                    <small class="text-body-secondary">{{ message.time | date:'shortTime' }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scroll to Bottom Button -->
+    <div class="scroll-to-bottom-container my-2" *ngIf="true">
+        <button class="btn btn-info rounded-circle shadow position-relative" (click)="scrollToBottom()">
+            <mat-icon class="mt-1">arrow_downward</mat-icon>
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                {{ unreadMessages }}
+                <span class="visually-hidden">scroll to bottom</span>
+            </span>
+        </button>
+    </div>
+
+    <div class="chat-footer">
+        <input type="text" class="form-control rounded-0" placeholder="Message Smarty..." [(ngModel)]="newMessage"
+            (keyup.enter)="sendMessage()">
+        <button class="btn btn-primary rounded-0 d-flex align-items-center" (click)="sendMessage()">
+            <mat-icon>send</mat-icon>
+        </button>
+    </div>
+</div>

@@ -1,0 +1,136 @@
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh; // Use the full viewport height
+  background-color: #333;
+  color: #fff;
+  border: 1px solid #444;
+
+  .chat-header {
+    position: sticky;
+    top: 0; // Stick to the top
+    z-index: 1000; // Ensure it's above other content
+    padding: 10px;
+    background-color: #222;
+  }
+
+  .chat-body {
+    position: relative; // Ensures the container can position its children absolutely
+    flex-grow: 1;
+    overflow-y: auto; // Only this part scrolls
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+
+    .message {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+
+      &.mine {
+        flex-direction: row-reverse;
+
+        .message-content {
+          position: relative;
+          background-color: #007bff;
+          padding: 5px;
+          border-radius: 10px;
+          margin-left: 10px;
+
+          &::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 100%; // Arrow on the right for the user's messages
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-left: 10px solid #007bff; // Color should match the message bubble
+          }
+        }
+      }
+
+      &.smarty {
+        .message-content {
+          position: relative;
+          background-color: #555;
+          padding: 5px;
+          border-radius: 10px;
+          margin-right: 10px;
+
+          &::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            right: 100%; // Arrow on the left for Smarty's messages
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-right: 10px solid #555; // Color should match the message bubble
+          }
+        }
+      }
+
+      .profile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+
+        img {
+          width: 33px;
+          height: 33px;
+          border-radius: 50%;
+        }
+
+        .username {
+          font-size: 0.8em;
+        }
+      }
+
+      .message-content {
+        max-width: 70%;
+        padding: 5px;
+        border-radius: 10px;
+        margin: 0 10px;
+      }
+    }
+  }
+
+  .scroll-to-bottom-container {
+    position: absolute;
+    right: 10px; // Right margin
+    bottom: 60px; // Bottom position, adjust this based on the height of your footer
+    z-index: 1000; // Ensure it's above other content
+
+    button {
+      opacity: 0.5; // Slightly transparent to blend into the design
+      &:hover {
+        opacity: 1; // Fully opaque on hover for better user interaction feedback
+      }
+    }
+  }
+
+  .chat-footer {
+    position: sticky;
+    bottom: 0; // Stick to the bottom
+    z-index: 1000; // Ensure it's above other content
+    display: flex;
+    padding: 10px;
+    background-color: #222;
+
+    input {
+      flex-grow: 1;
+      border: none;
+
+      &:focus {
+        box-shadow: none;
+      }
+    }
+
+    button {
+      white-space: nowrap;
+    }
+
+    .scroll-to-bottom {
+      margin-left: auto; // Positions the button to the far right
+    }
+  }
+}
