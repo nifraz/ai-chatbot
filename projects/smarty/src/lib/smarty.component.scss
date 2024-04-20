@@ -134,3 +134,10 @@
     }
   }
 }
+
+.spinner-border-sm {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 50px; // Adjust height to match your message box size
+}

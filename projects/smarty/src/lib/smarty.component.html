@@ -12,14 +12,19 @@
     </div>
 
     <div class="chat-body" #chatBody>
-        <div class="message" [ngClass]="{'mine': message.isMine, 'smarty': !message.isMine}"
-            *ngFor="let message of messages">
+        <div *ngFor="let message of messages; let i = index" class="message"
+            [ngClass]="{'mine': message.isMine, 'smarty': !message.isMine}">
             <div class="profile">
                 <img [src]="message.isMine ? 'assets/images/user.jpg' : 'assets/images/smarty.jpg'" alt="Profile">
                 <span class="username">{{ message.isMine ? 'you' : 'smarty' }}</span>
             </div>
             <div class="message-content px-2">
-                <span>{{ message.text }}</span>
+                <span *ngIf="!message.isLoading; else loadingTemplate">{{ message.text }}</span>
+                <ng-template #loadingTemplate>
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </ng-template>
                 <div class="message-time">
                     <small class="text-body-secondary">{{ message.time | date:'shortTime' }}</small>
                 </div>
@@ -31,7 +36,7 @@
     <div class="scroll-to-bottom-container my-2" *ngIf="true">
         <button class="btn btn-info rounded-circle shadow position-relative" (click)="scrollToBottom()">
             <mat-icon class="mt-1">arrow_downward</mat-icon>
-            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" *ngIf="unreadMessages">
                 {{ unreadMessages }}
                 <span class="visually-hidden">scroll to bottom</span>
             </span>
