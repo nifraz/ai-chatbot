@@ -1,4 +1,4 @@
-import { AfterViewChecked, Component, ElementRef, ViewChild } from '@angular/core';
+import { AfterViewChecked, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -11,6 +11,7 @@ import { HelpDialogComponent } from './help-dialog/help-dialog.component';
 import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { SmartyService } from './smarty.service';
+import { LoadingDotsComponent } from './loading-dots/loading-dots.component';
 
 @Component({
   selector: 'smarty',
@@ -24,18 +25,19 @@ import { SmartyService } from './smarty.service';
     MatFormFieldModule,
     MatInputModule,
     HttpClientModule,
-    MatProgressBarModule
+    MatProgressBarModule,
+    LoadingDotsComponent,
   ],
   templateUrl: './smarty.component.html',
   styleUrl: './smarty.component.scss'
 })
-export class SmartyComponent implements AfterViewChecked {
+export class SmartyComponent implements OnInit, AfterViewChecked {
 
   @ViewChild('chatBody') private chatBody!: ElementRef;
   messages: Message[] = [];
   unreadMessages: number = 0;
   newMessage: string = '';
-  loading: boolean = false; // State to control loading animation
+  isLoading: boolean = false; // State to control loading animation
   private responseMap: { [key: string]: string } = {};
 
   constructor(
@@ -44,12 +46,21 @@ export class SmartyComponent implements AfterViewChecked {
   ) {
 
   }
+  ngOnInit(): void {
+    this.isLoading = true;
+    this.smartyService.loadResponseMap().subscribe({
+      next: res => this.isLoading = false,
+      error: err => this.isLoading = false,
+    })
+  }
 
   ngAfterViewChecked() {
     this.scrollToBottom();
   }
 
   sendMessage() {
+    if (this.isLoading) return;
+    
     if (this.newMessage.trim()) {
       // Add user's message to messages array
       this.messages.push({
@@ -87,7 +98,7 @@ export class SmartyComponent implements AfterViewChecked {
           };
           this.scrollToBottom();
         }
-      }, 1000);
+      }, 1500);
   
       // Clear the input field and reset unread messages count
       this.newMessage = '';

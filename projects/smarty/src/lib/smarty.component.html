@@ -1,15 +1,19 @@
 <div class="chat-container">
     <div class="chat-header d-flex align-items-center justify-content-between">
         <div class="d-flex align-items-center justify-content-start">
-            <mat-icon class="me-2">message</mat-icon>
+            <mat-icon class="mx-2">message</mat-icon>
             <h2 class="mb-0 me-1">Chat with Smarty</h2>
             <span class="badge rounded-pill text-bg-warning">
                 beta
                 <span class="visually-hidden">beta version</span>
             </span>
         </div>
-        <mat-icon (click)="openHelpDialog()">help_outline</mat-icon>
+        <button class="btn-sm rounded-circle">
+            <mat-icon class="mt-1" (click)="openHelpDialog()">help_outline</mat-icon>
+        </button>
     </div>
+
+    <mat-progress-bar *ngIf="isLoading" mode="indeterminate"></mat-progress-bar>
 
     <div class="chat-body" #chatBody>
         <div *ngFor="let message of messages; let i = index" class="message"
@@ -21,9 +25,7 @@
             <div class="message-content px-2">
                 <span *ngIf="!message.isLoading; else loadingTemplate">{{ message.text }}</span>
                 <ng-template #loadingTemplate>
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
+                    <loading-dots></loading-dots>
                 </ng-template>
                 <div class="message-time">
                     <small class="text-body-secondary">{{ message.time | date:'shortTime' }}</small>
