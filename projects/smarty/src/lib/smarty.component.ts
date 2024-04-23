@@ -8,7 +8,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDialog } from '@angular/material/dialog';
 import { HelpDialogComponent } from './help-dialog/help-dialog.component';
-import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { SmartyService } from './smarty.service';
 import { LoadingDotsComponent } from './loading-dots/loading-dots.component';
@@ -24,7 +23,6 @@ import { LoadingDotsComponent } from './loading-dots/loading-dots.component';
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
-    HttpClientModule,
     MatProgressBarModule,
     LoadingDotsComponent,
   ],
@@ -38,7 +36,6 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   unreadMessages: number = 0;
   newMessage: string = '';
   isLoading: boolean = false; // State to control loading animation
-  private responseMap: { [key: string]: string } = {};
 
   constructor(
     public dialog: MatDialog,
@@ -48,7 +45,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   }
   ngOnInit(): void {
     this.isLoading = true;
-    this.smartyService.loadResponseMap().subscribe({
+    this.smartyService.loadChatbotData().subscribe({
       next: res => this.isLoading = false,
       error: err => this.isLoading = false,
     })
@@ -72,18 +69,21 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   
       // Add a loading message for Smarty
       const loadingMessageId = this.messages.length + 1;
-      this.messages.push({
-        id: loadingMessageId,
-        text: '', // Empty text for loading
-        time: new Date(),
-        isMine: false,
-        isLoading: true // Mark as loading
-      });
 
-      this.scrollToBottom();
+      setTimeout(() => {
+        this.messages.push({
+          id: loadingMessageId,
+          text: '', // Empty text for loading
+          time: new Date(),
+          isMine: false,
+          isLoading: true // Mark as loading
+        });
+
+        this.scrollToBottom();
+      }, 300);
       
       // Normalize user input and determine response
-      const response = this.smartyService.processMessage(this.newMessage);
+      const response = this.smartyService.processInput(this.newMessage);
   
       // Simulate processing time and then replace loading message
       setTimeout(() => {
