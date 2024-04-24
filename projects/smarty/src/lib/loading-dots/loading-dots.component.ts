@@ -5,7 +5,7 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
   selector: 'loading-dots',
   standalone: true,
   imports: [CommonModule],
-  template: `<div *ngIf="showAnimation">{{dots}}</div>`,
+  templateUrl: './loading-dots.component.html',
   styleUrls: ['./loading-dots.component.css']
 })
 export class LoadingDotsComponent implements OnInit, OnDestroy {

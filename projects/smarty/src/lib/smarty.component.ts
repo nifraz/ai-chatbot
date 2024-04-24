@@ -9,33 +9,39 @@ import { MatInputModule } from '@angular/material/input';
 import { MatDialog } from '@angular/material/dialog';
 import { HelpDialogComponent } from './help-dialog/help-dialog.component';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { SmartyService } from './smarty.service';
+import { ChatMessage, ChatResponse, SmartyService } from './smarty.service';
 import { LoadingDotsComponent } from './loading-dots/loading-dots.component';
+import { SuggestionsComponent } from "./suggestions/suggestions.component";
+import { Guid } from 'guid-typescript';
 
 @Component({
-  selector: 'smarty',
-  standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatCardModule,
-    MatToolbarModule,
-    MatIconModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatProgressBarModule,
-    LoadingDotsComponent,
-  ],
-  templateUrl: './smarty.component.html',
-  styleUrl: './smarty.component.scss'
+    selector: 'smarty',
+    standalone: true,
+    templateUrl: './smarty.component.html',
+    styleUrl: './smarty.component.scss',
+    imports: [
+        CommonModule,
+        FormsModule,
+        MatCardModule,
+        MatToolbarModule,
+        MatIconModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatProgressBarModule,
+        LoadingDotsComponent,
+        SuggestionsComponent
+    ]
 })
 export class SmartyComponent implements OnInit, AfterViewChecked {
 
   @ViewChild('chatBody') private chatBody!: ElementRef;
-  messages: Message[] = [];
-  unreadMessages: number = 0;
-  newMessage: string = '';
+  suggestions: string[] = [];
+  messages: ChatMessage[] = [];
+  get unseenMessageCount(): number { return this.messages.filter(x => !x.seen).length }
+  userInput: string = '';
+  lastResponse: ChatResponse | undefined = undefined;
   isLoading: boolean = false; // State to control loading animation
+  // showSuggestions: boolean = false;
 
   constructor(
     public dialog: MatDialog,
@@ -46,7 +52,10 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   ngOnInit(): void {
     this.isLoading = true;
     this.smartyService.loadChatbotData().subscribe({
-      next: res => this.isLoading = false,
+      next: res => {
+        this.isLoading = false;
+        this.suggestions = this.smartyService.getSuggestions();
+      },
       error: err => this.isLoading = false,
     })
   }
@@ -55,27 +64,32 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
     this.scrollToBottom();
   }
 
-  sendMessage() {
+  sendMessage(input: string) {
     if (this.isLoading) return;
     
-    if (this.newMessage.trim()) {
-      // Add user's message to messages array
-      this.messages.push({
-        id: this.messages.length + 1,
-        text: this.newMessage,
+    input = input.trim();
+    this.userInput = '';
+    this.suggestions = [];
+    if (input) {
+      const userMessage: ChatMessage = {
+        id: Guid.create(),
+        text: input,
         time: new Date(),
-        isMine: true
-      });
+        owner: true
+      };
+      // Add user's message to messages array
+      this.messages.push(userMessage);
   
       // Add a loading message for Smarty
-      const loadingMessageId = this.messages.length + 1;
+      const loadingMessageId = Guid.create();
 
       setTimeout(() => {
         this.messages.push({
           id: loadingMessageId,
           text: '', // Empty text for loading
           time: new Date(),
-          isMine: false,
+          owner: false,
+          seen: true,
           isLoading: true // Mark as loading
         });
 
@@ -83,26 +97,27 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
       }, 300);
       
       // Normalize user input and determine response
-      const response = this.smartyService.processInput(this.newMessage);
+      const response = this.smartyService.getNextResponse(userMessage);
   
       // Simulate processing time and then replace loading message
       setTimeout(() => {
         // Replace loading message with actual response
         const index = this.messages.findIndex(msg => msg.id === loadingMessageId);
         if (index !== -1) {
-          this.messages[index] = {
+          response.responseMessage = {
             id: loadingMessageId,
-            text: response,
+            text: response.text,
             time: new Date(),
-            isMine: false
+            owner: false,
+            seen: false,
+            isLoading: false,
           };
+          this.messages[index] = response.responseMessage;
+          this.suggestions = this.smartyService.getSuggestions(response.actionMappings[response.actionMappings.length - 1].followUps);
           this.scrollToBottom();
         }
       }, 1500);
   
-      // Clear the input field and reset unread messages count
-      this.newMessage = '';
-      this.unreadMessages = 0;
     }
   }
   
@@ -118,11 +133,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
 }
 
 export interface Message {
-  id: number;
-  text: string;
-  time: Date;
-  isMine: boolean; // Determine if the message is sent by the user or the chatbot
-  isLoading?: boolean; // New property to indicate loading state
+  
   // isError?: boolean;
 }
 

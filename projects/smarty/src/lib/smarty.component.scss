@@ -10,7 +10,6 @@
     position: sticky;
     top: 0; // Stick to the top
     z-index: 1000; // Ensure it's above other content
-    padding: 10px;
     background-color: #222;
   }
 
@@ -18,7 +17,6 @@
     position: relative; // Ensures the container can position its children absolutely
     flex-grow: 1;
     overflow-y: auto; // Only this part scrolls
-    padding: 10px;
     display: flex;
     flex-direction: column;
 
@@ -33,7 +31,6 @@
         .message-content {
           position: relative;
           background-color: #007bff;
-          padding: 5px;
           border-radius: 10px;
           margin-left: 10px;
 
@@ -53,7 +50,6 @@
         .message-content {
           position: relative;
           background-color: #555;
-          padding: 5px;
           border-radius: 10px;
           margin-right: 10px;
 
@@ -87,7 +83,6 @@
 
       .message-content {
         max-width: 70%;
-        padding: 5px;
         border-radius: 10px;
         margin: 0 10px;
       }
@@ -96,9 +91,9 @@
 
   .scroll-to-bottom-container {
     position: absolute;
-    right: 10px; // Right margin
-    bottom: 60px; // Bottom position, adjust this based on the height of your footer
-    z-index: 1000; // Ensure it's above other content
+    right: 18px; // Right margin
+    bottom: 83px; // Bottom position, adjust this based on the height of your footer
+    z-index: 1001; // Ensure it's above other content
 
     button {
       opacity: 0.5; // Slightly transparent to blend into the design
@@ -112,8 +107,6 @@
     position: sticky;
     bottom: 0; // Stick to the bottom
     z-index: 1000; // Ensure it's above other content
-    display: flex;
-    padding: 10px;
     background-color: #222;
 
     input {

@@ -1,5 +1,5 @@
 <div class="chat-container">
-    <div class="chat-header d-flex align-items-center justify-content-between">
+    <div class="chat-header d-flex align-items-center justify-content-between p-2">
         <div class="d-flex align-items-center justify-content-start">
             <mat-icon class="mx-2">message</mat-icon>
             <h2 class="mb-0 me-1">Chat with Smarty</h2>
@@ -8,22 +8,24 @@
                 <span class="visually-hidden">beta version</span>
             </span>
         </div>
-        <button class="btn-sm rounded-circle">
+        <button class="btn-sm rounded-circle border-0">
             <mat-icon class="mt-1" (click)="openHelpDialog()">help_outline</mat-icon>
         </button>
     </div>
 
     <mat-progress-bar *ngIf="isLoading" mode="indeterminate"></mat-progress-bar>
 
-    <div class="chat-body" #chatBody>
+    <div class="chat-body p-2" #chatBody>
         <div *ngFor="let message of messages; let i = index" class="message"
-            [ngClass]="{'mine': message.isMine, 'smarty': !message.isMine}">
+            [ngClass]="{'mine': message.owner, 'smarty': !message.owner}">
             <div class="profile">
-                <img [src]="message.isMine ? 'assets/images/user.jpg' : 'assets/images/smarty.jpg'" alt="Profile">
-                <span class="username">{{ message.isMine ? 'you' : 'smarty' }}</span>
+                <img [src]="message.owner ? 'assets/images/user.jpg' : 'assets/images/smarty.jpg'" alt="Profile">
+                <span class="username">{{ message.owner ? 'you' : 'smarty' }}</span>
             </div>
-            <div class="message-content px-2">
-                <span *ngIf="!message.isLoading; else loadingTemplate">{{ message.text }}</span>
+            <div class="message-content px-2 py-1">
+                <div *ngIf="!message.isLoading; else loadingTemplate" #messageBox>
+                    <span>{{ message.text }}</span>
+                </div>
                 <ng-template #loadingTemplate>
                     <loading-dots></loading-dots>
                 </ng-template>
@@ -36,20 +38,24 @@
 
     <!-- Scroll to Bottom Button -->
     <div class="scroll-to-bottom-container my-2" *ngIf="true">
-        <button class="btn btn-info rounded-circle shadow position-relative" (click)="scrollToBottom()">
+        <button class="btn btn-info rounded-circle shadow position-relative border-0" (click)="scrollToBottom()">
             <mat-icon class="mt-1">arrow_downward</mat-icon>
-            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" *ngIf="unreadMessages">
-                {{ unreadMessages }}
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" *ngIf="true">
+                {{ unseenMessageCount }}
                 <span class="visually-hidden">scroll to bottom</span>
             </span>
         </button>
     </div>
 
-    <div class="chat-footer">
-        <input type="text" class="form-control rounded-0" placeholder="Message Smarty..." [(ngModel)]="newMessage"
-            (keyup.enter)="sendMessage()">
-        <button class="btn btn-primary rounded-0 d-flex align-items-center" (click)="sendMessage()">
-            <mat-icon>send</mat-icon>
-        </button>
+    <div class="chat-footer p-2">
+        <suggestions [items]="suggestions" (click)="sendMessage($event)"></suggestions>
+        <div class="d-flex">
+            <input type="text" class="form-control rounded-0" placeholder="Message Smarty..." [(ngModel)]="userInput"
+                (keyup.enter)="sendMessage(userInput)">
+            <button class="btn btn-primary rounded-0 d-flex align-items-center" (click)="sendMessage(userInput)">
+                <mat-icon>send</mat-icon>
+            </button>
+        </div>
+
     </div>
 </div>
