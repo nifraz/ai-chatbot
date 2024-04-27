@@ -30,13 +30,21 @@ export class SmartyService {
     );
   }
 
-  getSuggestions(actionKeys: string[] | undefined = undefined): string[] {
+  getRandomGreetingTrigger(): string {
+    const triggers = this.actions.find(x => x.key == 'greet')?.triggers;
+    if (triggers && triggers.length) {
+      return triggers[getRandomIndex(triggers.length)];
+    }
+    return 'hi';
+  }
+
+  getSuggestions(actionKeys: string[] | undefined = undefined, count: number = 20): string[] {
+    let triggers = this.actions.find(x => x.key == 'greet')?.triggers;
     if (actionKeys && actionKeys.length) {
       const matchingActions = this.actions.filter(action => actionKeys.some(key => key == action.key));
-      const triggers = matchingActions.flatMap(action => action.triggers);
+      triggers = matchingActions.flatMap(action => action.triggers);
     }
-    const greetingTriggers = this.actions.find(x => x.key == 'greet')?.triggers;
-    return greetingTriggers ? getRandomElementsAndShuffle(greetingTriggers, greetingTriggers.length < 5 ? greetingTriggers.length : 5) : [];
+    return triggers ? getRandomElementsAndShuffle(triggers, triggers.length < count ? triggers.length : count) : [];
   }
 
   getNextResponse(inputMessage: ChatMessage | undefined): ChatResponse {
@@ -160,18 +168,27 @@ export interface ChatbotData {
 
 export interface Action {
   key: string,
+  isOptional?: boolean,
+  canRepeat?: boolean,
   triggers: string[],
   sentences: string[],
   followUps: string[],
+}
+
+export interface FollowUp {
+  actionKey: string,
+
 }
 
 export interface ChatMessage {
   id?: Guid;
   text?: string,
   time?: Date;
-  owner?: boolean;
-  seen?: boolean;
+  owner: Owner;
+  state?: State,
   isLoading?: boolean;
+  isError?: boolean;
+  seen?: boolean;
 }
 
 export interface ChatResponse {
@@ -188,4 +205,16 @@ export interface ActionMapping {
   sentence?: string,
   trigger?: string,
   followUps?: string[],
+}
+
+export enum Owner {
+  System,
+  Smarty,
+  User,
+  Stranger,
+}
+
+export enum State {
+  Created,
+  UserSeen,
 }

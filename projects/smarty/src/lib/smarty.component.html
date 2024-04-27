@@ -17,37 +17,40 @@
 
     <div class="chat-body p-2" #chatBody>
         <div *ngFor="let message of messages; let i = index" class="message"
-            [ngClass]="{'mine': message.owner, 'smarty': !message.owner}">
-            <div class="profile">
-                <img [src]="message.owner ? 'assets/images/user.jpg' : 'assets/images/smarty.jpg'" alt="Profile">
-                <span class="username">{{ message.owner ? 'you' : 'smarty' }}</span>
+            class="{{ Owner[message.owner].toLowerCase() }}">
+            <div *ngIf="message.owner != Owner.System" class="profile mb-auto">
+                <img src="{{ 'assets/images/' + Owner[message.owner].toLowerCase() + '.jpg' }}" alt="Profile">
+                <span class="username">{{ Owner[message.owner].toLowerCase() }}</span>
             </div>
-            <div class="message-content px-2 py-1">
+            <div class="message-content px-2 py-1" [ngClass]="{
+                'badge fw-light text-warning text-center text-wrap lh-sm mx-auto': message.owner == Owner.System,
+                }">
                 <div *ngIf="!message.isLoading; else loadingTemplate" #messageBox>
                     <span>{{ message.text }}</span>
                 </div>
                 <ng-template #loadingTemplate>
                     <loading-dots></loading-dots>
                 </ng-template>
-                <div class="message-time">
+                <div *ngIf="!message.isLoading && message.owner != Owner.System" class="message-time">
                     <small class="text-body-secondary">{{ message.time | date:'shortTime' }}</small>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Scroll to Bottom Button -->
-    <div class="scroll-to-bottom-container my-2" *ngIf="true">
-        <button class="btn btn-info rounded-circle shadow position-relative border-0" (click)="scrollToBottom()">
-            <mat-icon class="mt-1">arrow_downward</mat-icon>
-            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" *ngIf="true">
-                {{ unseenMessageCount }}
-                <span class="visually-hidden">scroll to bottom</span>
-            </span>
-        </button>
-    </div>
-
     <div class="chat-footer p-2">
+        <!-- Scroll to Bottom Button -->
+        <div class="scroll-to-bottom-container my-2" *ngIf="true">
+            <button class="btn btn-info rounded-circle shadow position-relative border-0" (click)="scrollToBottom()">
+                <mat-icon class="mt-1">arrow_downward</mat-icon>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                    *ngIf="unseenMessageCount">
+                    {{ unseenMessageCount }}
+                    <span class="visually-hidden">scroll to bottom</span>
+                </span>
+            </button>
+        </div>
+
         <suggestions [items]="suggestions" (click)="sendMessage($event)"></suggestions>
         <div class="d-flex">
             <input type="text" class="form-control rounded-0" placeholder="Message Smarty..." [(ngModel)]="userInput"

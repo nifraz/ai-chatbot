@@ -1,6 +1,10 @@
-<div *ngIf="items && items.length; else loadingTemplate">
-    <button *ngFor="let item of items" (click)="sendSuggestion(item)" class="badge text-bg-primary rounded-pill border-0 me-1 mb-2">{{ item }}</button>
+<div class="d-flex flex-nowrap overflow-auto scrollbar-hidden">
+    <div *ngIf="items && items.length; else loadingTemplate" class="d-inline-flex">
+        <button *ngFor="let item of items" (click)="sendSuggestion(item)"
+            class="btn btn-sm btn-primary rounded-pill border-0 me-1 mb-2">{{ item }}</button>
+    </div>
+    <ng-template #loadingTemplate>
+        <span class="badge text-bg-info rounded-pill border-0 me-1 mb-2">loading suggestions
+            <loading-dots></loading-dots></span>
+    </ng-template>
 </div>
-<ng-template #loadingTemplate>
-    <span class="badge text-bg-info rounded-pill border-0 me-1 mb-2">loading suggestions <loading-dots></loading-dots></span>
-</ng-template>

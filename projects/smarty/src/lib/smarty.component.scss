@@ -25,24 +25,13 @@
       align-items: center;
       margin-bottom: 10px;
 
-      &.mine {
-        flex-direction: row-reverse;
-
+      &.system {
         .message-content {
           position: relative;
-          background-color: #007bff;
+          background-color: #414141;
           border-radius: 10px;
-          margin-left: 10px;
-
-          &::before {
-            content: '';
-            position: absolute;
-            top: 10px;
-            left: 100%; // Arrow on the right for the user's messages
-            border-top: 5px solid transparent;
-            border-bottom: 5px solid transparent;
-            border-left: 10px solid #007bff; // Color should match the message bubble
-          }
+          margin-right: 10px;
+          max-width: 100%;
         }
       }
 
@@ -51,7 +40,8 @@
           position: relative;
           background-color: #555;
           border-radius: 10px;
-          margin-right: 10px;
+          margin-left: 5px;
+          max-width: 70%;
 
           &::before {
             content: '';
@@ -65,14 +55,37 @@
         }
       }
 
+      &.user {
+        flex-direction: row-reverse;
+
+        .message-content {
+          position: relative;
+          background-color: #007bff;
+          border-radius: 10px;
+          margin-right: 5px;
+          max-width: 70%;
+
+          &::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 100%; // Arrow on the right for the user's messages
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-left: 10px solid #007bff; // Color should match the message bubble
+          }
+        }
+      }
+
+
       .profile {
         display: flex;
         flex-direction: column;
         align-items: center;
 
         img {
-          width: 33px;
-          height: 33px;
+          width: 40px;
+          height: 40px;
           border-radius: 50%;
         }
 
@@ -80,19 +93,13 @@
           font-size: 0.8em;
         }
       }
-
-      .message-content {
-        max-width: 70%;
-        border-radius: 10px;
-        margin: 0 10px;
-      }
     }
   }
 
   .scroll-to-bottom-container {
     position: absolute;
     right: 18px; // Right margin
-    bottom: 83px; // Bottom position, adjust this based on the height of your footer
+    bottom: 47px; // Bottom position, adjust this based on the height of your footer
     z-index: 1001; // Ensure it's above other content
 
     button {
