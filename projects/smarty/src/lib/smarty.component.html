@@ -20,7 +20,7 @@
             class="{{ Owner[message.owner].toLowerCase() }}">
             <div *ngIf="message.owner != Owner.System" class="profile mb-auto">
                 <img src="{{ 'assets/images/' + Owner[message.owner].toLowerCase() + '.jpg' }}" alt="Profile">
-                <span class="username">{{ message.owner == Owner.User ? nickname : Owner[message.owner].toLowerCase() }}</span>
+                <span class="username">{{ message.nickname }}</span>
             </div>
             <div class="message-content px-2 py-1" [ngClass]="{
                 'badge fw-light text-warning text-center text-wrap lh-sm mx-auto': message.owner == Owner.System,

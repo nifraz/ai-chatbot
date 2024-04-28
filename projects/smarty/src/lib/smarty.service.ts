@@ -69,6 +69,10 @@ export class SmartyService {
     return getRandomElementsAndShuffle(allTriggers);
   }
 
+  getLatestResponse(): ChatResponse {
+    return this.latestResponse;
+  }
+
   getNextResponse(inputMessage: ChatMessage | undefined): ChatResponse {
     this.latestResponse = {
       text: '400',
@@ -199,6 +203,7 @@ export interface ChatMessage {
   text?: string,
   time?: Date;
   owner: Owner;
+  nickname?: string;
   state?: State,
   isLoading?: boolean;
   isError?: boolean;

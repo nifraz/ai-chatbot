@@ -57,11 +57,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
       next: res => {
         this.isLoading = false;
         loadingMessage.text = `Loading successful.`;
-        this.addNewMessage({
-          owner: Owner.System,
-          text: `Please enter your nickname. It should be 3 to 8 characters long and contain only letters and numbers, with no spaces or special characters.`,
-        });
-        this.suggestions = this.smartyService.getNicknameSuggestions();
+        this.readNickname();
       },
       error: err => {
         this.isLoading = false;
@@ -71,6 +67,15 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
     });
   }
 
+  readNickname(): void {
+    this.nickname = '';
+    this.addNewMessage({
+      owner: Owner.System,
+      text: `Please enter your nickname. It should be 3 to 8 characters long and contain only letters and numbers, with no spaces or special characters.`,
+    });
+    this.suggestions = this.smartyService.getNicknameSuggestions();
+  }
+
   addNewMessage(message: ChatMessage): ChatMessage {
     if (!message.id) {
       message.id = Guid.create();
@@ -78,6 +83,8 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
     if (!message.time) {
       message.time = new Date();
     }
+      
+    message.nickname = message.owner == Owner.User ? this.nickname : Owner[message.owner].toLowerCase();
 
     this.messages.push(message);
     this.scrollToBottom();
@@ -90,8 +97,8 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
 
   saveNickname(input: string): void {
     const regex = /^[a-zA-Z0-9]{3,8}$/;
-    this.addNewMessage({ text: input, owner: Owner.User });
     this.nickname = regex.test(input) ? input.toLowerCase() : 'potato';
+    this.addNewMessage({ text: input, owner: Owner.User });
     this.addNewMessage({
       owner: Owner.System,
       text: `Get the conversation going by typing a message. Keep your messages short, clean and to the point.`,
@@ -139,6 +146,9 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
       loadingMessage.seen = false;
       loadingMessage.text = response.text;
       this.suggestions = response.suggestions?.length ? response.suggestions : this.smartyService.getRandomSuggestions();
+      if (response.actionMappings[0]?.action.key == 'bye') {
+        this.readNickname();
+      }
     }, 1500);
   }
 
