@@ -20,7 +20,7 @@
             class="{{ Owner[message.owner].toLowerCase() }}">
             <div *ngIf="message.owner != Owner.System" class="profile mb-auto">
                 <img src="{{ 'assets/images/' + Owner[message.owner].toLowerCase() + '.jpg' }}" alt="Profile">
-                <span class="username">{{ Owner[message.owner].toLowerCase() }}</span>
+                <span class="username">{{ message.owner == Owner.User ? nickname : Owner[message.owner].toLowerCase() }}</span>
             </div>
             <div class="message-content px-2 py-1" [ngClass]="{
                 'badge fw-light text-warning text-center text-wrap lh-sm mx-auto': message.owner == Owner.System,
@@ -51,11 +51,11 @@
             </button>
         </div>
 
-        <suggestions [items]="suggestions" (click)="sendMessage($event)"></suggestions>
+        <suggestions [items]="suggestions" (click)="processInput($event)"></suggestions>
         <div class="d-flex">
-            <input type="text" class="form-control rounded-0" placeholder="Message Smarty..." [(ngModel)]="userInput"
-                (keyup.enter)="sendMessage(userInput)">
-            <button class="btn btn-primary rounded-0 d-flex align-items-center" (click)="sendMessage(userInput)">
+            <input type="text" class="form-control rounded-0" [placeholder]="nickname ? 'Message Smarty...' : 'Enter Your Nickname...'" [(ngModel)]="userInput"
+                (keyup.enter)="processInput(userInput)">
+            <button class="btn btn-primary rounded-0 d-flex align-items-center" (click)="processInput(userInput)">
                 <mat-icon>send</mat-icon>
             </button>
         </div>

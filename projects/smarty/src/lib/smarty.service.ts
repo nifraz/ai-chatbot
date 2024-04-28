@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Guid } from 'guid-typescript';
 import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { map, tap } from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root'
@@ -11,11 +11,7 @@ export class SmartyService {
   private chatbotDataUrl: string = 'https://raw.githubusercontent.com/nifraz/data/master/chatbotData.json';
   private actions: Action[] = [];
 
-  // private userInput: string = '';
-  // private tokens: string[] = [];
-  // private actionMappings: ActionMapping[] = [];
-
-  private lastResponse: ChatResponse = { text: '', actionMappings: [] }
+  private latestResponse: ChatResponse = { text: '', actionMappings: [] }
   private chatHistory: ChatResponse[] = [];
 
   constructor(private http: HttpClient) { }
@@ -25,44 +21,70 @@ export class SmartyService {
       tap(data => {
         if (data) {
           this.actions = data.actions;
+          this.actions.forEach(action => {
+            action.followUpActions = this.actions.filter(act => action.followUpKeys.some(key => key == act.key))
+          });
         }
       })
     );
   }
 
-  getRandomGreetingTrigger(): string {
-    const triggers = this.actions.find(x => x.key == 'greet')?.triggers;
-    if (triggers && triggers.length) {
-      return triggers[getRandomIndex(triggers.length)];
-    }
-    return 'hi';
+  getNicknameSuggestions(): string[] {
+    const nicknames = [
+      "ninja",
+      "potato",
+      "rocket",
+      "gizmo",
+      "bender",
+      "widget",
+      "muffin",
+      "wombat",
+      "peanut",
+      "gadget",
+      "bandit",
+      "rascal",
+      "biscuit",
+      "tango",
+      "snack",
+      "pickle",
+      "cheeto",
+      "fidget",
+      "puzzle",
+      "squash"
+    ];
+
+    return getRandomElementsAndShuffle(nicknames);
   }
 
-  getSuggestions(actionKeys: string[] | undefined = undefined, count: number = 20): string[] {
-    let triggers = this.actions.find(x => x.key == 'greet')?.triggers;
-    if (actionKeys && actionKeys.length) {
-      const matchingActions = this.actions.filter(action => actionKeys.some(key => key == action.key));
-      triggers = matchingActions.flatMap(action => action.triggers);
+  getSuggestions(action: Action | undefined = undefined): string[] {
+    let triggers = this.actions.find(x => x.key == 'hi')?.triggers;
+    if (action) {
+      triggers = action.followUpActions.flatMap(followUp => followUp.triggers);
     }
-    return triggers ? getRandomElementsAndShuffle(triggers, triggers.length < count ? triggers.length : count) : [];
+    return triggers ? getRandomElementsAndShuffle(triggers) : [];
+  }
+
+  getRandomSuggestions(): string[] {
+    const allTriggers = this.actions.flatMap(action => action.triggers);
+    return getRandomElementsAndShuffle(allTriggers);
   }
 
   getNextResponse(inputMessage: ChatMessage | undefined): ChatResponse {
-    this.lastResponse = {
+    this.latestResponse = {
       text: '400',
       actionMappings: [],
     }
     // const chatMessage: ChatMessage = { text: '400' };
     if (inputMessage && inputMessage.text) {
-      this.lastResponse.userMessage = inputMessage;
+      this.latestResponse.userMessage = inputMessage;
       const sanitizedInput = this.sanitizeInput(inputMessage.text);
-      this.lastResponse.tokens = sanitizedInput.split(/[.?!]\s*/);
+      this.latestResponse.tokens = sanitizedInput.split(/[.?!]\s*/);
 
-      this.matchTokensToActions(this.lastResponse.tokens);
+      this.matchTokensToActions(this.latestResponse.tokens);
       return this.buildResponse();
     }
 
-    return this.lastResponse;
+    return this.latestResponse;
   }
 
   sanitizeInput(input: string): string {
@@ -78,38 +100,30 @@ export class SmartyService {
       if (matchingAction) {
         const actionMapping = this.addToActionMappings({ action: matchingAction });
         if (actionMapping) {
-          const followUpCount = getRandomIntInclusive(1, matchingAction.followUps.length);
-          actionMapping.followUps = getRandomElementsAndShuffle(matchingAction.followUps, followUpCount);
-          actionMapping.followUps.forEach(actionKey => {
-            const followUpAction = this.actions.find(action => action.key == actionKey);
-            if (followUpAction) {
-              this.addToActionMappings({ action: followUpAction });
-            }
-          });
+          actionMapping.mappedFollowUpActions = matchingAction.followUpActions.filter(action => !action.isOptional || tossCoin())
+          actionMapping.mappedFollowUpActions.forEach(action => this.addToActionMappings({ action: action }));
         }
       }
     });
   }
 
   addToActionMappings(actionMapping: ActionMapping): ActionMapping | undefined {
-    if (actionMapping 
-        && actionMapping.action 
-        && this.lastResponse
-        && this.lastResponse.actionMappings
-        && (this.lastResponse.actionMappings.length === 0 || this.lastResponse.actionMappings[this.lastResponse.actionMappings.length - 1].action.key !== actionMapping.action.key)) {
-      this.lastResponse.actionMappings.push(actionMapping);
+    if (actionMapping
+      && actionMapping.action
+      && this.latestResponse
+      && this.latestResponse.actionMappings
+      && (this.latestResponse.actionMappings.length === 0 || this.latestResponse.actionMappings[this.latestResponse.actionMappings.length - 1].action.key !== actionMapping.action.key)) {
+      this.latestResponse.actionMappings.push(actionMapping);
       return actionMapping;
     }
     return undefined;
   }
 
   buildResponse(): ChatResponse {
-    
-    this.lastResponse.text = '404'
-    this.lastResponse.suggestions = this.getSuggestions();
-    if (this.lastResponse && this.lastResponse.actionMappings) {
+    this.latestResponse.text = '404'
+    if (this.latestResponse && this.latestResponse.actionMappings) {
       let responseText = '';
-      this.lastResponse.actionMappings.forEach(mapping => {
+      this.latestResponse.actionMappings.forEach(mapping => {
         for (let index = 0; index < 3; index++) {
           mapping.sentence = mapping.action.sentences[getRandomIndex(mapping.action.sentences.length)];
           if (!responseText.includes(mapping.sentence)) {
@@ -118,34 +132,35 @@ export class SmartyService {
           }
         }
       });
-  
+
       if (responseText.trim()) {
-        this.lastResponse.text = responseText.trim();
-        const followUpKeys = this.lastResponse.actionMappings[this.lastResponse.actionMappings.length - 1].action.followUps;
-        this.lastResponse.suggestions = this.getSuggestions(followUpKeys);
+        this.latestResponse.text = responseText.trim();
+        const latestAction = this.latestResponse.actionMappings[this.latestResponse.actionMappings.length - 1].action;
+        this.latestResponse.suggestions = this.getSuggestions(latestAction);
       }
       else {
-        this.lastResponse.text = '404';
+        const isQuestion = this.latestResponse.userMessage?.text?.includes('?');
+        if (isQuestion) {
+          this.latestResponse.text = `Can you tell me the answer? I'll remember that for you.`;
+          this.latestResponse.needLearning = true;
+        }
       }
     }
-    this.chatHistory.push(this.lastResponse);
-    return this.lastResponse;
+    this.chatHistory.push(this.latestResponse);
+    return this.latestResponse;
   }
 }
 
-function getRandomIndex(length: number, minIndex: number = 0): number {
+export function getRandomIndex(length: number, minIndex: number = 0): number {
   return getRandomIntInclusive(minIndex, length - 1)
 }
 
-function getRandomIntInclusive(min: number, max: number): number {
+export function getRandomIntInclusive(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-function getRandomElementsAndShuffle<T>(originalArray: T[], numElements: number): T[] {
-  if (numElements > originalArray.length) {
-    throw new Error("Requested more elements than are available in the array.");
-    // Alternatively, you could return the entire shuffled array if this is acceptable behavior.
-  }
+export function getRandomElementsAndShuffle<T>(originalArray: T[], numElements: number = 20): T[] {
+  numElements = originalArray.length < numElements ? originalArray.length : numElements;
 
   // Create a copy of the array to avoid modifying the original
   let arrayCopy = originalArray.slice();
@@ -155,11 +170,15 @@ function getRandomElementsAndShuffle<T>(originalArray: T[], numElements: number)
   return arrayCopy.slice(0, numElements);
 }
 
-function shuffleArray<T>(array: T[]): void {
+export function shuffleArray<T>(array: T[]): void {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]]; // Swap elements using destructuring
   }
+}
+
+export function tossCoin(): boolean {
+  return Math.floor(Math.random() * 2) === 1;
 }
 
 export interface ChatbotData {
@@ -168,16 +187,11 @@ export interface ChatbotData {
 
 export interface Action {
   key: string,
-  isOptional?: boolean,
-  canRepeat?: boolean,
+  isOptional: boolean,
   triggers: string[],
   sentences: string[],
-  followUps: string[],
-}
-
-export interface FollowUp {
-  actionKey: string,
-
+  followUpKeys: string[],
+  followUpActions: Action[],
 }
 
 export interface ChatMessage {
@@ -197,6 +211,7 @@ export interface ChatResponse {
   actionMappings: ActionMapping[],
   text: string,
   responseMessage?: ChatMessage,
+  needLearning?: boolean,
   suggestions?: string[],
 }
 
@@ -204,7 +219,7 @@ export interface ActionMapping {
   action: Action,
   sentence?: string,
   trigger?: string,
-  followUps?: string[],
+  mappedFollowUpActions?: Action[],
 }
 
 export enum Owner {

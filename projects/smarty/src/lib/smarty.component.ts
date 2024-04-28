@@ -9,7 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatDialog } from '@angular/material/dialog';
 import { HelpDialogComponent } from './help-dialog/help-dialog.component';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { ChatMessage, ChatResponse, Owner, SmartyService } from './smarty.service';
+import { ChatMessage, ChatResponse, Owner, SmartyService, getRandomIndex, tossCoin } from './smarty.service';
 import { LoadingDotsComponent } from './loading-dots/loading-dots.component';
 import { SuggestionsComponent } from "./suggestions/suggestions.component";
 import { Guid } from 'guid-typescript';
@@ -35,13 +35,13 @@ import { Guid } from 'guid-typescript';
 export class SmartyComponent implements OnInit, AfterViewChecked {
 
   @ViewChild('chatBody') private chatBody!: ElementRef;
+  nickname: string = '';
   suggestions: string[] = [];
   messages: ChatMessage[] = [];
   get unseenMessageCount(): number { return this.messages.filter(x => !x.seen && x.owner != Owner.System).length }
   userInput: string = '';
   lastResponse: ChatResponse | undefined = undefined;
   isLoading: boolean = false; // State to control loading animation
-  // showSuggestions: boolean = false;
   Owner = Owner;
 
   constructor(
@@ -51,19 +51,27 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
 
   }
   ngOnInit(): void {
-    const message = this.addMessage({ text: `Please wait while we're loading things up for you...`, owner: Owner.System })
+    const loadingMessage = this.addNewMessage({ text: `Please wait while we're loading things up for you...`, owner: Owner.System });
     this.isLoading = true;
     this.smartyService.loadChatbotData().subscribe({
       next: res => {
         this.isLoading = false;
-        message.text = `Welcome! Get the conversation going by typing your own message or simply click on one of the suggestions to begin chatting.`
-        this.suggestions = this.smartyService.getSuggestions();
+        loadingMessage.text = `Loading successful.`;
+        this.addNewMessage({
+          owner: Owner.System,
+          text: `Please enter your nickname. It should be 3 to 8 characters long and contain only letters and numbers, with no spaces or special characters.`,
+        });
+        this.suggestions = this.smartyService.getNicknameSuggestions();
       },
-      error: err => this.isLoading = false,
+      error: err => {
+        this.isLoading = false;
+        console.error(err);
+        loadingMessage.text = `Oops! Something went wrong. Please refresh the page. If the problem continues, contact support by opening Help icon in top right corner. We apologize for any inconvenience.`;
+      },
     });
   }
 
-  addMessage(message: ChatMessage): ChatMessage {
+  addNewMessage(message: ChatMessage): ChatMessage {
     if (!message.id) {
       message.id = Guid.create();
     }
@@ -80,36 +88,92 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
     this.scrollToBottom();
   }
 
-  sendMessage(input: string) {
-    if (this.isLoading) return;
+  saveNickname(input: string): void {
+    const regex = /^[a-zA-Z0-9]{3,8}$/;
+    this.addNewMessage({ text: input, owner: Owner.User });
+    this.nickname = regex.test(input) ? input.toLowerCase() : 'potato';
+    this.addNewMessage({
+      owner: Owner.System,
+      text: `Get the conversation going by typing a message. Keep your messages short, clean and to the point.`,
+    });
+    this.suggestions = this.smartyService.getSuggestions();
+  }
 
-    input = input.trim();
+  processInput(input: string) {
+    if (!input || !input.length) {
+      return;
+    }
+    const text = input.trim();
+    if (this.isLoading || !text) return;
+
+    if (!this.nickname) {
+      this.saveNickname(text);
+      this.userInput = '';
+      return;
+    }
+    this.sendMessage(text);
+  }
+
+  sendMessage(text: string) {
     this.userInput = '';
     this.suggestions = [];
-    if (input) {
-      const userMessage = this.addMessage({ text: input, owner: Owner.User });
 
-      const loadingMessage = {
-        text: '',
-        owner: Owner.Smarty,
-        seen: true,
-        isLoading: true // Mark as loading
-      };
+    const userMessage = this.addNewMessage({ text: text, owner: Owner.User });
 
-      setTimeout(() => {
-        this.addMessage(loadingMessage);
-      }, 300);
+    const loadingMessage = {
+      text: '',
+      owner: Owner.Smarty,
+      seen: true,
+      isLoading: true // Mark as loading
+    };
 
-      setTimeout(() => {
-        const response = this.smartyService.getNextResponse(userMessage);
-        // Replace loading message with actual response
-        loadingMessage.isLoading = false;
-        loadingMessage.seen = false;
-        loadingMessage.text = response.text;
-        this.suggestions = this.smartyService.getSuggestions(response.actionMappings[response.actionMappings.length - 1].followUps);
-      }, 1500);
+    setTimeout(() => {
+      this.addNewMessage(loadingMessage);
+    }, 300);
 
+    setTimeout(() => {
+      const response = this.smartyService.getNextResponse(userMessage);
+      response.text = this.replaceNickname(response.text);
+      // Replace loading message with actual response
+      loadingMessage.isLoading = false;
+      loadingMessage.seen = false;
+      loadingMessage.text = response.text;
+      this.suggestions = response.suggestions?.length ? response.suggestions : this.smartyService.getRandomSuggestions();
+    }, 1500);
+  }
+
+  replaceNickname(text: string): string {
+    const placeholder = '{name}';
+    let indices = [];
+    let index = text.indexOf(placeholder);
+
+    // Collect all indices of the placeholder
+    while (index !== -1) {
+      indices.push(index);
+      index = text.indexOf(placeholder, index + 1);
     }
+
+    // Check if any placeholders were found
+    if (indices.length > 0) {
+      // Randomly select one index from indices array
+      const selectedIndex = indices[Math.floor(Math.random() * indices.length)];
+
+      // Replace one occurrence randomly with the nickname
+      text = text.substring(0, selectedIndex) + this.getNicknameReplacement() +
+        text.substring(selectedIndex + placeholder.length);
+
+      // Replace all remaining placeholders with an empty string
+      text = text.replace(new RegExp(placeholder, 'g'), '');
+    }
+    return text;
+  }
+
+  getNicknameReplacement(): string {
+    const hasSmartyMessage = this.messages.some(message => message.owner == Owner.Smarty && !message.isLoading);
+    if (!hasSmartyMessage || tossCoin()) {
+      return (tossCoin() ? ',' : '') + ` ${this.nickname}`;
+    }
+    return '';
   }
 
   scrollToBottom(): void {
@@ -124,9 +188,3 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
     });
   }
 }
-
-export interface Message {
-
-  // isError?: boolean;
-}
-
