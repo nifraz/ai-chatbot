@@ -69,10 +69,6 @@ export class SmartyService {
     return getRandomElementsAndShuffle(allTriggers);
   }
 
-  getLatestResponse(): ChatResponse {
-    return this.latestResponse;
-  }
-
   getNextResponse(inputMessage: ChatMessage | undefined): ChatResponse {
     this.latestResponse = {
       text: '400',
@@ -98,7 +94,7 @@ export class SmartyService {
   matchTokensToActions(tokens: string[]): void {
     tokens.forEach(token => {
       const matchingAction = this.actions.find(action =>
-        action.triggers.some(trigger => token.includes(trigger))
+        action.triggers.some(trigger => containsExactPhrase(token, trigger))
       );
 
       if (matchingAction) {
@@ -183,6 +179,16 @@ export function shuffleArray<T>(array: T[]): void {
 
 export function tossCoin(): boolean {
   return Math.floor(Math.random() * 2) === 1;
+}
+
+export function containsExactPhrase(token: string, trigger: string): boolean {
+  // Create a regular expression with word boundaries around the entire phrase
+  const regex = new RegExp(`\\b${trigger}\\b`, 'i');
+  return regex.test(token);
+}
+
+export function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escapes special characters for regex
 }
 
 export interface ChatbotData {
