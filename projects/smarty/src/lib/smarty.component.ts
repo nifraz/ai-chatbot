@@ -73,7 +73,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
       owner: Owner.System,
       text: `Please enter your nickname. It should be 3 to 8 characters long and contain only letters and numbers, with no spaces or special characters.`,
     });
-    this.suggestions = this.smartyService.getNicknameSuggestions();
+    this.suggestions = this.smartyService.getNextSuggestions();
   }
 
   addNewMessage(message: ChatMessage): ChatMessage {
@@ -101,9 +101,10 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
     this.addNewMessage({ text: input, owner: Owner.User });
     this.addNewMessage({
       owner: Owner.System,
-      text: `Get the conversation going by typing a message. Keep your messages short, clean and to the point.`,
+      text: `Get the conversation going by entering a message. Keep your messages short, clean and to the point.`,
     });
-    this.suggestions = this.smartyService.getSuggestions();
+    this.suggestions = [];
+    this.suggestions = this.smartyService.getGreetingSuggestions();
   }
 
   processInput(input: string) {
@@ -127,8 +128,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
 
     const userMessage = this.addNewMessage({ text: text, owner: Owner.User });
 
-    const loadingMessage = {
-      text: '',
+    const loadingMessage: ChatMessage = {
       owner: Owner.Smarty,
       seen: true,
       isLoading: true // Mark as loading
@@ -140,50 +140,16 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
 
     setTimeout(() => {
       const response = this.smartyService.getNextResponse(userMessage);
-      response.text = this.replaceNickname(response.text);
       // Replace loading message with actual response
       loadingMessage.isLoading = false;
       loadingMessage.seen = false;
-      loadingMessage.text = response.text;
-      this.suggestions = response.suggestions?.length ? response.suggestions : this.smartyService.getRandomSuggestions();
+      loadingMessage.text = response.botReplyMessage.text;
+      const botAction = response.actionMappings[response.actionMappings.length - 1].action;
+      this.suggestions = response.suggestions;
       if (response.actionMappings[0]?.action.key == 'bye') {
         this.readNickname();
       }
     }, 1500);
-  }
-
-  replaceNickname(text: string): string {
-    const placeholder = '{name}';
-    let indices = [];
-    let index = text.indexOf(placeholder);
-
-    // Collect all indices of the placeholder
-    while (index !== -1) {
-      indices.push(index);
-      index = text.indexOf(placeholder, index + 1);
-    }
-
-    // Check if any placeholders were found
-    if (indices.length > 0) {
-      // Randomly select one index from indices array
-      const selectedIndex = indices[Math.floor(Math.random() * indices.length)];
-
-      // Replace one occurrence randomly with the nickname
-      text = text.substring(0, selectedIndex) + this.getNicknameReplacement() +
-        text.substring(selectedIndex + placeholder.length);
-
-      // Replace all remaining placeholders with an empty string
-      text = text.replace(new RegExp(placeholder, 'g'), '');
-    }
-    return text;
-  }
-
-  getNicknameReplacement(): string {
-    const hasSmartyMessage = this.messages.some(message => message.owner == Owner.Smarty && !message.isLoading);
-    if (!hasSmartyMessage || tossCoin()) {
-      return (tossCoin() ? ',' : '') + ` ${this.nickname}`;
-    }
-    return '';
   }
 
   scrollToBottom(): void {

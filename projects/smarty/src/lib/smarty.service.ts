@@ -11,7 +11,12 @@ export class SmartyService {
   private chatbotDataUrl: string = 'https://raw.githubusercontent.com/nifraz/data/master/chatbotData.json';
   private actions: Action[] = [];
 
-  private latestResponse: ChatResponse = { text: '', actionMappings: [] }
+  private latestResponse: ChatResponse = {
+    userMessage: { owner: Owner.User },
+    botReplyMessage: { owner: Owner.Smarty },
+    actionMappings: [],
+    suggestions: [],
+  };
   private chatHistory: ChatResponse[] = [];
 
   constructor(private http: HttpClient) { }
@@ -29,7 +34,7 @@ export class SmartyService {
     );
   }
 
-  getNicknameSuggestions(): string[] {
+  private getNameSuggestions(): string[] {
     const nicknames = [
       "ninja",
       "potato",
@@ -56,28 +61,41 @@ export class SmartyService {
     return getRandomElementsAndShuffle(nicknames);
   }
 
-  getSuggestions(action: Action | undefined = undefined): string[] {
-    let triggers = this.actions.find(x => x.key == 'hi')?.triggers;
-    if (action) {
-      triggers = action.followUpActions.flatMap(followUp => followUp.triggers);
+  // : string[] {
+  //   const triggers = action.followUpActions.flatMap(followUp => followUp.triggers);
+  //   return getRandomElementsAndShuffle(triggers);
+  // }
+
+  getGreetingSuggestions(): string[] {
+    const triggers = this.actions.find(x => x.key == 'hi')?.triggers;
+    return getRandomElementsAndShuffle(triggers);
+  }
+
+  ignoredKeysFromRandomSuggestions: string[] = ['hi'];
+  getNextSuggestions(action: Action | undefined = undefined): string[] {
+    if (!action) {
+      return this.getNameSuggestions();
     }
-    return triggers ? getRandomElementsAndShuffle(triggers) : [];
+    const followUpTriggers = action.followUpActions.flatMap(followUp => followUp.triggers);
+    const followUpRandomSuggestions = getRandomElementsAndShuffle(followUpTriggers);
+    const randomTriggers = this.actions
+      .filter(action => !this.ignoredKeysFromRandomSuggestions.includes(action.key))
+      .flatMap(action => action.triggers);
+    const randomSuggestions = getRandomElementsAndShuffle(randomTriggers);
+    return getRandomElementsAndShuffle([...followUpRandomSuggestions, ...randomSuggestions]);
   }
 
-  getRandomSuggestions(): string[] {
-    const allTriggers = this.actions.flatMap(action => action.triggers);
-    return getRandomElementsAndShuffle(allTriggers);
-  }
-
-  getNextResponse(inputMessage: ChatMessage | undefined): ChatResponse {
+  getNextResponse(userMessage: ChatMessage): ChatResponse {
     this.latestResponse = {
-      text: '400',
+      userMessage: userMessage,
+      botReplyMessage: { owner: Owner.Smarty },
       actionMappings: [],
+      suggestions: [],
     }
     // const chatMessage: ChatMessage = { text: '400' };
-    if (inputMessage && inputMessage.text) {
-      this.latestResponse.userMessage = inputMessage;
-      const sanitizedInput = this.sanitizeInput(inputMessage.text);
+    if (userMessage && userMessage.text) {
+      this.latestResponse.userMessage = userMessage;
+      const sanitizedInput = this.sanitizeInput(userMessage.text);
       this.latestResponse.tokens = sanitizedInput.split(/[.?!]\s*/);
 
       this.matchTokensToActions(this.latestResponse.tokens);
@@ -120,7 +138,7 @@ export class SmartyService {
   }
 
   buildResponse(): ChatResponse {
-    this.latestResponse.text = '404'
+    this.latestResponse.botReplyMessage.text = '404';
     if (this.latestResponse && this.latestResponse.actionMappings) {
       let responseText = '';
       this.latestResponse.actionMappings.forEach(mapping => {
@@ -134,26 +152,60 @@ export class SmartyService {
       });
 
       if (responseText.trim()) {
-        this.latestResponse.text = responseText.trim();
+        this.latestResponse.botReplyMessage.text = responseText.trim();
         const latestAction = this.latestResponse.actionMappings[this.latestResponse.actionMappings.length - 1].action;
-        this.latestResponse.suggestions = this.getSuggestions(latestAction);
+        this.latestResponse.suggestions = this.getNextSuggestions(latestAction);
       }
       else {
         const isQuestion = this.latestResponse.userMessage?.text?.includes('?');
         if (isQuestion) {
-          this.latestResponse.text = `Can you tell me the answer? I'll remember that for you.`;
+          this.latestResponse.botReplyMessage.text = `Can you tell me the answer? I'll remember that for you.`;
           this.latestResponse.needLearning = true;
         }
         else {
           const defaultAction = this.actions.find(action => action.key == '404');
           if (defaultAction) {
-            this.latestResponse.text = getRandomElement(defaultAction.sentences);
+            this.latestResponse.botReplyMessage.text = getRandomElement(defaultAction.sentences);
           }
         }
       }
     }
+    this.replaceName();
     this.chatHistory.push(this.latestResponse);
     return this.latestResponse;
+  }
+
+  replaceName(): void {
+    if (!this.latestResponse.botReplyMessage.text) return;
+    const placeholder = '{name}';
+    let indices = [];
+    let index = this.latestResponse.botReplyMessage.text?.indexOf(placeholder) ?? -1;
+
+    // Collect all indices of the placeholder
+    while (index !== -1) {
+      indices.push(index);
+      index = this.latestResponse.botReplyMessage.text.indexOf(placeholder, index + 1) ?? -1;
+    }
+
+    // Check if any placeholders were found
+    if (indices.length > 0) {
+      // Randomly select one index from indices array
+      const selectedIndex = indices[Math.floor(Math.random() * indices.length)];
+
+      // Replace one occurrence randomly with the nickname
+      this.latestResponse.botReplyMessage.text = this.latestResponse.botReplyMessage.text.substring(0, selectedIndex) + this.getNameReplacement(this.latestResponse.userMessage.nickname) +
+        this.latestResponse.botReplyMessage.text?.substring(selectedIndex + placeholder.length);
+
+      // Replace all remaining placeholders with an empty string
+      this.latestResponse.botReplyMessage.text = this.latestResponse.botReplyMessage.text.replace(new RegExp(placeholder, 'g'), '');
+    }
+  }
+
+  getNameReplacement(name: string | undefined): string {
+    if (!name || !this.chatHistory.length || !tossCoin()) {
+      return '';
+    }
+    return (tossCoin() ? ',' : '') + ` ${name}`;
   }
 }
 
@@ -169,7 +221,9 @@ export function getRandomIntInclusive(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-export function getRandomElementsAndShuffle<T>(originalArray: T[], numElements: number = 20): T[] {
+export function getRandomElementsAndShuffle<T>(originalArray: T[] | undefined, numElements: number = 32): T[] {
+  if (!originalArray) return [];
+
   numElements = originalArray.length < numElements ? originalArray.length : numElements;
 
   // Create a copy of the array to avoid modifying the original
@@ -227,13 +281,12 @@ export interface ChatMessage {
 }
 
 export interface ChatResponse {
-  userMessage?: ChatMessage;
+  userMessage: ChatMessage;
   tokens?: string[],
   actionMappings: ActionMapping[],
-  text: string,
-  responseMessage?: ChatMessage,
+  botReplyMessage: ChatMessage,
   needLearning?: boolean,
-  suggestions?: string[],
+  suggestions: string[],
 }
 
 export interface ActionMapping {
