@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Guid } from 'guid-typescript';
 import { Observable } from 'rxjs';
-import { map, tap } from 'rxjs/operators';
+import { tap } from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root'
@@ -125,7 +125,7 @@ export class SmartyService {
       let responseText = '';
       this.latestResponse.actionMappings.forEach(mapping => {
         for (let index = 0; index < 3; index++) {
-          mapping.sentence = mapping.action.sentences[getRandomIndex(mapping.action.sentences.length)];
+          mapping.sentence = getRandomElement(mapping.action.sentences);
           if (!responseText.includes(mapping.sentence)) {
             responseText += mapping.sentence + " ";
             break;
@@ -144,11 +144,21 @@ export class SmartyService {
           this.latestResponse.text = `Can you tell me the answer? I'll remember that for you.`;
           this.latestResponse.needLearning = true;
         }
+        else {
+          const defaultAction = this.actions.find(action => action.key == '404');
+          if (defaultAction) {
+            this.latestResponse.text = getRandomElement(defaultAction.sentences);
+          }
+        }
       }
     }
     this.chatHistory.push(this.latestResponse);
     return this.latestResponse;
   }
+}
+
+export function getRandomElement<T>(array: T[]): T {
+  return array[getRandomIndex(array.length)];
 }
 
 export function getRandomIndex(length: number, minIndex: number = 0): number {

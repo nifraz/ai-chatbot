@@ -9,7 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatDialog } from '@angular/material/dialog';
 import { HelpDialogComponent } from './help-dialog/help-dialog.component';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { ChatMessage, ChatResponse, Owner, SmartyService, getRandomIndex, tossCoin } from './smarty.service';
+import { ChatMessage, ChatResponse, Owner, SmartyService, tossCoin } from './smarty.service';
 import { LoadingDotsComponent } from './loading-dots/loading-dots.component';
 import { SuggestionsComponent } from "./suggestions/suggestions.component";
 import { Guid } from 'guid-typescript';
