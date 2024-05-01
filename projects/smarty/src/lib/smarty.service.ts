@@ -21,45 +21,46 @@ export class SmartyService {
 
   constructor(private http: HttpClient) { }
 
-  loadChatbotData(): Observable<ChatbotData> {
+  reloadChatbotData(): Observable<ChatbotData> {
     return this.http.get<ChatbotData>(this.chatbotDataUrl).pipe(
       tap(data => {
         if (data) {
           this.actions = data.actions;
           this.actions.forEach(action => {
-            action.followUpActions = this.actions.filter(act => action.followUpKeys.some(key => key == act.key))
+            action.followUps = this.actions.filter(act => action.followUpKeys.some(key => key == act.key));
+            action.reactions = this.actions.filter(act => action.reactionKeys.some(key => key == act.key));
           });
         }
       })
     );
   }
 
-  private getNameSuggestions(): string[] {
-    const nicknames = [
-      "ninja",
-      "potato",
-      "rocket",
-      "gizmo",
-      "bender",
-      "widget",
-      "muffin",
-      "wombat",
-      "peanut",
-      "gadget",
-      "bandit",
-      "rascal",
-      "biscuit",
-      "tango",
-      "snack",
-      "pickle",
-      "cheeto",
-      "fidget",
-      "puzzle",
-      "squash"
-    ];
+  // private getNameSuggestions(): string[] {
+  //   const nicknames = [
+  //     "ninja",
+  //     "potato",
+  //     "rocket",
+  //     "gizmo",
+  //     "bender",
+  //     "widget",
+  //     "muffin",
+  //     "wombat",
+  //     "peanut",
+  //     "gadget",
+  //     "bandit",
+  //     "rascal",
+  //     "biscuit",
+  //     "tango",
+  //     "snack",
+  //     "pickle",
+  //     "cheeto",
+  //     "fidget",
+  //     "puzzle",
+  //     "squash"
+  //   ];
 
-    return getRandomElementsAndShuffle(nicknames);
-  }
+  //   return getRandomElementsAndShuffle(nicknames);
+  // }
 
   // : string[] {
   //   const triggers = action.followUpActions.flatMap(followUp => followUp.triggers);
@@ -67,20 +68,21 @@ export class SmartyService {
   // }
 
   getGreetingSuggestions(): string[] {
-    const triggers = this.actions.find(x => x.key == 'hi')?.triggers;
-    return getRandomElementsAndShuffle(triggers);
+    const keywords = this.actions.find(x => x.key == 'say-hi')?.keywords;
+    return getRandomElementsAndShuffle(keywords);
   }
 
-  ignoredKeysFromRandomSuggestions: string[] = ['hi'];
+  ignoredKeysFromRandomSuggestions: string[] = ['say-hi'];
   getNextSuggestions(action: Action | undefined = undefined): string[] {
     if (!action) {
-      return this.getNameSuggestions();
+      const keywords = this.actions.find(x => x.key == 'tell-name')?.keywords;
+      return getRandomElementsAndShuffle(keywords);
     }
-    const followUpTriggers = action.followUpActions.flatMap(followUp => followUp.triggers);
+    const followUpTriggers = action.followUps.flatMap(followUp => followUp.keywords);
     const followUpRandomSuggestions = getRandomElementsAndShuffle(followUpTriggers);
     const randomTriggers = this.actions
       .filter(action => !this.ignoredKeysFromRandomSuggestions.includes(action.key))
-      .flatMap(action => action.triggers);
+      .flatMap(action => action.keywords);
     const randomSuggestions = getRandomElementsAndShuffle(randomTriggers);
     return getRandomElementsAndShuffle([...followUpRandomSuggestions, ...randomSuggestions]);
   }
@@ -112,13 +114,13 @@ export class SmartyService {
   matchTokensToActions(tokens: string[]): void {
     tokens.forEach(token => {
       const matchingAction = this.actions.find(action =>
-        action.triggers.some(trigger => containsExactPhrase(token, trigger))
+        action.keywords.some(trigger => containsExactPhrase(token, trigger))
       );
 
       if (matchingAction) {
         const actionMapping = this.addToActionMappings({ action: matchingAction });
         if (actionMapping) {
-          actionMapping.mappedFollowUpActions = matchingAction.followUpActions.filter(action => !action.isOptional || tossCoin())
+          actionMapping.mappedFollowUpActions = matchingAction.followUps.filter(action => !action.isImportant || tossCoin())
           actionMapping.mappedFollowUpActions.forEach(action => this.addToActionMappings({ action: action }));
         }
       }
@@ -143,7 +145,7 @@ export class SmartyService {
       let responseText = '';
       this.latestResponse.actionMappings.forEach(mapping => {
         for (let index = 0; index < 3; index++) {
-          mapping.sentence = getRandomElement(mapping.action.sentences);
+          mapping.sentence = getRandomElement(mapping.action.phrases);
           if (!responseText.includes(mapping.sentence)) {
             responseText += mapping.sentence + " ";
             break;
@@ -165,7 +167,7 @@ export class SmartyService {
         else {
           const defaultAction = this.actions.find(action => action.key == '404');
           if (defaultAction) {
-            this.latestResponse.botReplyMessage.text = getRandomElement(defaultAction.sentences);
+            this.latestResponse.botReplyMessage.text = getRandomElement(defaultAction.phrases);
           }
         }
       }
@@ -245,13 +247,13 @@ export function tossCoin(): boolean {
   return Math.floor(Math.random() * 2) === 1;
 }
 
-export function containsExactPhrase(token: string, trigger: string): boolean {
+export function containsExactPhrase(text: string, phrase: string): boolean {
   // Create a regular expression with word boundaries around the entire phrase
-  const regex = new RegExp(`\\b${trigger}\\b`, 'i');
-  return regex.test(token);
+  const regex = new RegExp(`\\b${phrase}\\b`, 'i');
+  return regex.test(text);
 }
 
-export function escapeRegExp(text: string): string {
+export function escapeSpecialCharacters(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escapes special characters for regex
 }
 
@@ -261,11 +263,14 @@ export interface ChatbotData {
 
 export interface Action {
   key: string,
-  isOptional: boolean,
-  triggers: string[],
-  sentences: string[],
+  isImportant?: boolean,
+  isQuestion?: boolean,
+  keywords: string[],
+  phrases: string[],
   followUpKeys: string[],
-  followUpActions: Action[],
+  followUps: Action[],
+  reactionKeys: string[],
+  reactions: Action[],
 }
 
 export interface ChatMessage {

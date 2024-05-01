@@ -42,6 +42,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   userInput: string = '';
   lastResponse: ChatResponse | undefined = undefined;
   isLoading: boolean = false; // State to control loading animation
+  // isError: boolean = false;
   Owner = Owner;
 
   constructor(
@@ -53,14 +54,16 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   ngOnInit(): void {
     const loadingMessage = this.addNewMessage({ text: `Please wait while we're loading things up for you...`, owner: Owner.System });
     this.isLoading = true;
-    this.smartyService.loadChatbotData().subscribe({
+    this.smartyService.reloadChatbotData().subscribe({
       next: res => {
         this.isLoading = false;
+        loadingMessage.isError = false;
         loadingMessage.text = `Loading successful.`;
         this.readNickname();
       },
       error: err => {
         this.isLoading = false;
+        loadingMessage.isError = true;
         console.error(err);
         loadingMessage.text = `Oops! Something went wrong. Please refresh the page. If the problem continues, contact support by opening Help icon in top right corner. We apologize for any inconvenience.`;
       },
@@ -108,6 +111,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   }
 
   processInput(input: string) {
+    
     if (!input || !input.length) {
       return;
     }
