@@ -14,10 +14,10 @@ export class SmartyService {
   private latestResponse: ChatResponse = {
     userMessage: { owner: Owner.User },
     botReplyMessage: { owner: Owner.Smarty },
-    actionMappings: [],
     suggestions: [],
   };
   private chatHistory: ChatResponse[] = [];
+  private storedHistory: Map<string, ChatResponse[]> = new Map<string, ChatResponse[]>();
 
   constructor(private http: HttpClient) { }
 
@@ -35,67 +35,44 @@ export class SmartyService {
     );
   }
 
-  // private getNameSuggestions(): string[] {
-  //   const nicknames = [
-  //     "ninja",
-  //     "potato",
-  //     "rocket",
-  //     "gizmo",
-  //     "bender",
-  //     "widget",
-  //     "muffin",
-  //     "wombat",
-  //     "peanut",
-  //     "gadget",
-  //     "bandit",
-  //     "rascal",
-  //     "biscuit",
-  //     "tango",
-  //     "snack",
-  //     "pickle",
-  //     "cheeto",
-  //     "fidget",
-  //     "puzzle",
-  //     "squash"
-  //   ];
+  greetingKeys: string[] = ['say-hi'];
+  ignoredKeysFromRandomSuggestions: string[] = [...this.greetingKeys, 'tell-name', 'ask-to-help', 'tell-a-joke'];
+  farewellActionKeys = ['say-bye', 'say-later'];
+  getNextSuggestions(): string[] {
+    const hasFarewellAction = this.latestResponse.botReplyActions?.some(action => this.farewellActionKeys.includes(action.key));
+    if (hasFarewellAction) {
+      this.latestResponse.isUserLeft = true;
+    }
 
-  //   return getRandomElementsAndShuffle(nicknames);
-  // }
-
-  // : string[] {
-  //   const triggers = action.followUpActions.flatMap(followUp => followUp.triggers);
-  //   return getRandomElementsAndShuffle(triggers);
-  // }
-
-  getGreetingSuggestions(): string[] {
-    const keywords = this.actions.find(x => x.key == 'say-hi')?.keywords;
-    return getRandomElementsAndShuffle(keywords);
-  }
-
-  ignoredKeysFromRandomSuggestions: string[] = ['say-hi'];
-  getNextSuggestions(action: Action | undefined = undefined): string[] {
-    if (!action) {
-      const keywords = this.actions.find(x => x.key == 'tell-name')?.keywords;
+    if (!this.chatHistory.length || hasFarewellAction) {
+      const keywords = this.actions.find(action => action.key == 'tell-name')?.keywords;
       return getRandomElementsAndShuffle(keywords);
     }
-    const followUpTriggers = action.followUps.flatMap(followUp => followUp.keywords);
-    const followUpRandomSuggestions = getRandomElementsAndShuffle(followUpTriggers);
-    const randomTriggers = this.actions
+
+    if (this.chatHistory.length == 1) {
+      const keywords = this.actions
+        .filter(action => this.greetingKeys.includes(action.key))
+        .flatMap(action => action.keywords);
+      return getRandomElementsAndShuffle(keywords);
+    }
+
+    const responseKeywords = this.latestResponse.botReplyActions?.flatMap(action => action.keywords) ?? [];
+    const randomReactionSuggestions = getRandomElementsAndShuffle(responseKeywords);
+    const randomKeywords = this.actions
       .filter(action => !this.ignoredKeysFromRandomSuggestions.includes(action.key))
       .flatMap(action => action.keywords);
-    const randomSuggestions = getRandomElementsAndShuffle(randomTriggers);
-    return getRandomElementsAndShuffle([...followUpRandomSuggestions, ...randomSuggestions]);
+    const randomSuggestions = getRandomElementsAndShuffle(randomKeywords);
+    return getRandomElementsAndShuffle([...randomReactionSuggestions, ...randomSuggestions]);
   }
 
   getNextResponse(userMessage: ChatMessage): ChatResponse {
     this.latestResponse = {
       userMessage: userMessage,
       botReplyMessage: { owner: Owner.Smarty },
-      actionMappings: [],
       suggestions: [],
     }
-    // const chatMessage: ChatMessage = { text: '400' };
-    if (userMessage && userMessage.text) {
+
+    if (userMessage.text) {
       this.latestResponse.userMessage = userMessage;
       const sanitizedInput = this.sanitizeInput(userMessage.text);
       this.latestResponse.tokens = sanitizedInput.split(/[.?!]\s*/);
@@ -104,6 +81,10 @@ export class SmartyService {
       return this.buildResponse();
     }
 
+    if (this.latestResponse.isUserLeft) {
+      this.storedHistory.set(userMessage.nickname ?? '', this.chatHistory);
+      this.chatHistory = [];
+    }
     return this.latestResponse;
   }
 
@@ -116,38 +97,41 @@ export class SmartyService {
       const matchingAction = this.actions.find(action =>
         action.keywords.some(trigger => containsExactPhrase(token, trigger))
       );
+      const confusedAction = this.actions.find(action => action.key == 'say-im-confused');
+      this.latestResponse.botReplyActions = [];
 
+      let mappedReactions: Action[] = [];
       if (matchingAction) {
-        const actionMapping = this.addToActionMappings({ action: matchingAction });
-        if (actionMapping) {
-          actionMapping.mappedFollowUpActions = matchingAction.followUps.filter(action => !action.isImportant || tossCoin())
-          actionMapping.mappedFollowUpActions.forEach(action => this.addToActionMappings({ action: action }));
-        }
+        this.latestResponse.mappedUserAction = matchingAction;
+        mappedReactions = getRandomElementsAndShuffle(matchingAction.reactions, getRandomIntInclusive(1, 2));
       }
-    });
-  }
+      else if (confusedAction) {
+        mappedReactions = [confusedAction];
+      }
 
-  addToActionMappings(actionMapping: ActionMapping): ActionMapping | undefined {
-    if (actionMapping
-      && actionMapping.action
-      && this.latestResponse
-      && this.latestResponse.actionMappings
-      && (this.latestResponse.actionMappings.length === 0 || this.latestResponse.actionMappings[this.latestResponse.actionMappings.length - 1].action.key !== actionMapping.action.key)) {
-      this.latestResponse.actionMappings.push(actionMapping);
-      return actionMapping;
-    }
-    return undefined;
+      mappedReactions.forEach(element => {
+        if (!this.latestResponse.botReplyActions?.some(action => action.key == element.key)) {
+          this.latestResponse.botReplyActions?.push(element);
+        }
+      });
+      const mappedFollowUps = getRandomElementsAndShuffle(mappedReactions.flatMap(reaction => reaction.followUps), getRandomIntInclusive(1, 2));
+      mappedFollowUps.forEach(element => {
+        if (!this.latestResponse.botReplyActions?.some(action => action.key == element.key)) {
+          this.latestResponse.botReplyActions?.push(element);
+        }
+      });
+    });
   }
 
   buildResponse(): ChatResponse {
     this.latestResponse.botReplyMessage.text = '404';
-    if (this.latestResponse && this.latestResponse.actionMappings) {
+    if (this.latestResponse && this.latestResponse.botReplyActions) {
       let responseText = '';
-      this.latestResponse.actionMappings.forEach(mapping => {
+      this.latestResponse.botReplyActions?.forEach(action => {
         for (let index = 0; index < 3; index++) {
-          mapping.sentence = getRandomElement(mapping.action.phrases);
-          if (!responseText.includes(mapping.sentence)) {
-            responseText += mapping.sentence + " ";
+          const mappedPhrase = getRandomElement(action.phrases);
+          if (!responseText.includes(mappedPhrase)) {
+            responseText += mappedPhrase + " ";
             break;
           }
         }
@@ -155,8 +139,7 @@ export class SmartyService {
 
       if (responseText.trim()) {
         this.latestResponse.botReplyMessage.text = responseText.trim();
-        const latestAction = this.latestResponse.actionMappings[this.latestResponse.actionMappings.length - 1].action;
-        this.latestResponse.suggestions = this.getNextSuggestions(latestAction);
+        // const latestAction = this.latestResponse.actionMappings[this.latestResponse.actionMappings.length - 1].action;
       }
       else {
         const isQuestion = this.latestResponse.userMessage?.text?.includes('?');
@@ -164,29 +147,24 @@ export class SmartyService {
           this.latestResponse.botReplyMessage.text = `Can you tell me the answer? I'll remember that for you.`;
           this.latestResponse.needLearning = true;
         }
-        else {
-          const defaultAction = this.actions.find(action => action.key == '404');
-          if (defaultAction) {
-            this.latestResponse.botReplyMessage.text = getRandomElement(defaultAction.phrases);
-          }
-        }
       }
     }
-    this.replaceName();
+
+    this.latestResponse.botReplyMessage.text = this.replaceName(this.latestResponse.botReplyMessage.text, this.latestResponse.botReplyMessage.nickname, '{self}');
+    this.latestResponse.botReplyMessage.text = this.replaceName(this.latestResponse.botReplyMessage.text, this.latestResponse.userMessage.nickname, '{target}');
     this.chatHistory.push(this.latestResponse);
+    this.latestResponse.suggestions = this.getNextSuggestions();
     return this.latestResponse;
   }
 
-  replaceName(): void {
-    if (!this.latestResponse.botReplyMessage.text) return;
-    const placeholder = '{name}';
+  replaceName(text: string, name: string | undefined, placeholder: string): string {
     let indices = [];
-    let index = this.latestResponse.botReplyMessage.text?.indexOf(placeholder) ?? -1;
+    let index = text?.indexOf(placeholder) ?? -1;
 
     // Collect all indices of the placeholder
     while (index !== -1) {
       indices.push(index);
-      index = this.latestResponse.botReplyMessage.text.indexOf(placeholder, index + 1) ?? -1;
+      index = text.indexOf(placeholder, index + 1) ?? -1;
     }
 
     // Check if any placeholders were found
@@ -195,20 +173,22 @@ export class SmartyService {
       const selectedIndex = indices[Math.floor(Math.random() * indices.length)];
 
       // Replace one occurrence randomly with the nickname
-      this.latestResponse.botReplyMessage.text = this.latestResponse.botReplyMessage.text.substring(0, selectedIndex) + this.getNameReplacement(this.latestResponse.userMessage.nickname) +
-        this.latestResponse.botReplyMessage.text?.substring(selectedIndex + placeholder.length);
+      text = text.substring(0, selectedIndex) + this.getNameReplacement(name) +
+        text?.substring(selectedIndex + placeholder.length);
 
       // Replace all remaining placeholders with an empty string
-      this.latestResponse.botReplyMessage.text = this.latestResponse.botReplyMessage.text.replace(new RegExp(placeholder, 'g'), '');
+      text = text.replace(new RegExp(placeholder, 'g'), '');
     }
+    return text;
   }
 
   getNameReplacement(name: string | undefined): string {
-    if (!name || !this.chatHistory.length || !tossCoin()) {
-      return '';
+    if (name && (!this.chatHistory.length || tossCoin())) {
+      return (tossCoin() ? ',' : '') + ` ${name}`;
     }
-    return (tossCoin() ? ',' : '') + ` ${name}`;
+    return '';
   }
+
 }
 
 export function getRandomElement<T>(array: T[]): T {
@@ -257,6 +237,10 @@ export function escapeSpecialCharacters(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escapes special characters for regex
 }
 
+export function removeDuplicates<T>(array: T[]): T[] {
+  return Array.from(new Set(array));
+}
+
 export interface ChatbotData {
   actions: Action[];
 }
@@ -288,17 +272,12 @@ export interface ChatMessage {
 export interface ChatResponse {
   userMessage: ChatMessage;
   tokens?: string[],
-  actionMappings: ActionMapping[],
+  mappedUserAction?: Action;
+  botReplyActions?: Action[];
   botReplyMessage: ChatMessage,
   needLearning?: boolean,
   suggestions: string[],
-}
-
-export interface ActionMapping {
-  action: Action,
-  sentence?: string,
-  trigger?: string,
-  mappedFollowUpActions?: Action[],
+  isUserLeft?: boolean;
 }
 
 export enum Owner {

@@ -35,7 +35,7 @@ import { Guid } from 'guid-typescript';
 export class SmartyComponent implements OnInit, AfterViewChecked {
 
   @ViewChild('chatBody') private chatBody!: ElementRef;
-  nickname: string = '';
+  currentUsername: string = '';
   suggestions: string[] = [];
   messages: ChatMessage[] = [];
   get unseenMessageCount(): number { return this.messages.filter(x => !x.seen && x.owner != Owner.System).length }
@@ -71,7 +71,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   }
 
   readNickname(): void {
-    this.nickname = '';
+    this.currentUsername = '';
     this.addNewMessage({
       owner: Owner.System,
       text: `Please enter your nickname. It should be 3 to 8 characters long and contain only letters and numbers, with no spaces or special characters.`,
@@ -87,7 +87,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
       message.time = new Date();
     }
       
-    message.nickname = message.owner == Owner.User ? this.nickname : Owner[message.owner].toLowerCase();
+    message.nickname = message.owner == Owner.User ? this.currentUsername : Owner[message.owner].toLowerCase();
 
     this.messages.push(message);
     this.scrollToBottom();
@@ -100,28 +100,19 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
 
   saveNickname(input: string): void {
     const regex = /^[a-zA-Z0-9]{3,8}$/;
-    this.nickname = regex.test(input) ? input.toLowerCase() : 'potato';
-    this.addNewMessage({ text: input, owner: Owner.User });
-    this.addNewMessage({
-      owner: Owner.System,
-      text: `Get the conversation going by entering a message. Keep your messages short, clean and to the point.`,
-    });
+    this.currentUsername = regex.test(input) ? input.toLowerCase() : 'potato';
     this.suggestions = [];
-    this.suggestions = this.smartyService.getGreetingSuggestions();
   }
 
   processInput(input: string) {
-    
     if (!input || !input.length) {
       return;
     }
     const text = input.trim();
     if (this.isLoading || !text) return;
 
-    if (!this.nickname) {
+    if (!this.currentUsername) {
       this.saveNickname(text);
-      this.userInput = '';
-      return;
     }
     this.sendMessage(text);
   }
@@ -129,9 +120,16 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   sendMessage(text: string) {
     this.userInput = '';
     this.suggestions = [];
-
+    
     const userMessage = this.addNewMessage({ text: text, owner: Owner.User });
-
+  
+    if (this.messages.filter(message => message.owner == Owner.User).length == 1) {
+      this.addNewMessage({
+        owner: Owner.System,
+        text: `Get the conversation going by entering a message. Keep your messages short, clean and to the point.`,
+      });
+    }
+    
     const loadingMessage: ChatMessage = {
       owner: Owner.Smarty,
       seen: true,
@@ -148,9 +146,8 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
       loadingMessage.isLoading = false;
       loadingMessage.seen = false;
       loadingMessage.text = response.botReplyMessage.text;
-      const botAction = response.actionMappings[response.actionMappings.length - 1].action;
       this.suggestions = response.suggestions;
-      if (response.actionMappings[0]?.action.key == 'bye') {
+      if (response.isUserLeft) {
         this.readNickname();
       }
     }, 1500);
