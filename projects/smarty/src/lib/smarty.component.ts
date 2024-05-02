@@ -129,23 +129,27 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
         text: `Get the conversation going by entering a message. Keep your messages short, clean and to the point.`,
       });
     }
+
+    const response = this.smartyService.getNextResponse(userMessage);
+
+    const loadingMessage = response.botReplyMessage;
+    loadingMessage.seen = true;
+    loadingMessage.isLoading = true;
     
-    const loadingMessage: ChatMessage = {
-      owner: Owner.Smarty,
-      seen: true,
-      isLoading: true // Mark as loading
-    };
+    // const loadingMessage: ChatMessage = {
+    //   owner: Owner.Smarty,
+    //   seen: true,
+    //   isLoading: true // Mark as loading
+    // };
 
     setTimeout(() => {
       this.addNewMessage(loadingMessage);
     }, 300);
 
     setTimeout(() => {
-      const response = this.smartyService.getNextResponse(userMessage);
-      // Replace loading message with actual response
-      loadingMessage.isLoading = false;
+      // const response = this.smartyService.getNextResponse(userMessage);
       loadingMessage.seen = false;
-      loadingMessage.text = response.botReplyMessage.text;
+      loadingMessage.isLoading = false;
       this.suggestions = response.suggestions;
       if (response.isUserLeft) {
         this.readNickname();

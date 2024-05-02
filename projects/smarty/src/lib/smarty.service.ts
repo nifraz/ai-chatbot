@@ -68,14 +68,19 @@ export class SmartyService {
   getNextResponse(userMessage: ChatMessage): ChatResponse {
     this.latestResponse = {
       userMessage: userMessage,
-      botReplyMessage: { owner: Owner.Smarty },
+      botReplyMessage: { owner: Owner.Smarty, nickname: Owner[Owner.Smarty].toLowerCase() },
       suggestions: [],
     }
 
+    // if (!this.chatHistory.length) {
+    //   const phrases = this.actions.find(action => action.key == 'tell-name')?.phrases ?? ['I’m{self}.'];
+    //   const randomPhrase = getRandomElement(phrases);
+    //   userMessage.text = this.replaceName(randomPhrase, userMessage.nickname, '{self}');
+    // }
+
     if (userMessage.text) {
       this.latestResponse.userMessage = userMessage;
-      const sanitizedInput = this.sanitizeInput(userMessage.text);
-      this.latestResponse.tokens = sanitizedInput.split(/[.?!]\s*/);
+      this.latestResponse.tokens = userMessage.text.split(/[.?!]\s*/);
 
       this.matchTokensToActions(this.latestResponse.tokens);
       return this.buildResponse();
@@ -88,11 +93,8 @@ export class SmartyService {
     return this.latestResponse;
   }
 
-  sanitizeInput(input: string): string {
-    return input.toLowerCase().replace(/[^\w\s]/g, '');
-  }
-
   matchTokensToActions(tokens: string[]): void {
+    this.latestResponse.mappedUserActions = [];
     tokens.forEach(token => {
       const matchingAction = this.actions.find(action =>
         action.keywords.some(trigger => containsExactPhrase(token, trigger))
@@ -102,7 +104,7 @@ export class SmartyService {
 
       let mappedReactions: Action[] = [];
       if (matchingAction) {
-        this.latestResponse.mappedUserAction = matchingAction;
+        this.latestResponse.mappedUserActions?.push(matchingAction);
         mappedReactions = getRandomElementsAndShuffle(matchingAction.reactions, getRandomIntInclusive(1, 2));
       }
       else if (confusedAction) {
@@ -150,14 +152,14 @@ export class SmartyService {
       }
     }
 
-    this.latestResponse.botReplyMessage.text = this.replaceName(this.latestResponse.botReplyMessage.text, this.latestResponse.botReplyMessage.nickname, '{self}');
+    this.latestResponse.botReplyMessage.text = this.replaceName(this.latestResponse.botReplyMessage.text, this.latestResponse.botReplyMessage.nickname, '{self}', true);
     this.latestResponse.botReplyMessage.text = this.replaceName(this.latestResponse.botReplyMessage.text, this.latestResponse.userMessage.nickname, '{target}');
     this.chatHistory.push(this.latestResponse);
     this.latestResponse.suggestions = this.getNextSuggestions();
     return this.latestResponse;
   }
 
-  replaceName(text: string, name: string | undefined, placeholder: string): string {
+  replaceName(text: string, name: string | undefined, placeholder: string, isImportant: boolean = false): string {
     let indices = [];
     let index = text?.indexOf(placeholder) ?? -1;
 
@@ -173,7 +175,7 @@ export class SmartyService {
       const selectedIndex = indices[Math.floor(Math.random() * indices.length)];
 
       // Replace one occurrence randomly with the nickname
-      text = text.substring(0, selectedIndex) + this.getNameReplacement(name) +
+      text = text.substring(0, selectedIndex) + this.getNameReplacement(name, isImportant) +
         text?.substring(selectedIndex + placeholder.length);
 
       // Replace all remaining placeholders with an empty string
@@ -182,8 +184,8 @@ export class SmartyService {
     return text;
   }
 
-  getNameReplacement(name: string | undefined): string {
-    if (name && (!this.chatHistory.length || tossCoin())) {
+  getNameReplacement(name: string | undefined, isImportant: boolean): string {
+    if (name && (isImportant || !this.chatHistory.length || tossCoin())) {
       return (tossCoin() ? ',' : '') + ` ${name}`;
     }
     return '';
@@ -228,9 +230,17 @@ export function tossCoin(): boolean {
 }
 
 export function containsExactPhrase(text: string, phrase: string): boolean {
+  text = sanitize(text);
+  phrase = sanitize(phrase);
   // Create a regular expression with word boundaries around the entire phrase
   const regex = new RegExp(`\\b${phrase}\\b`, 'i');
   return regex.test(text);
+}
+
+
+export function sanitize(input: string): string {
+  // removes any character that is not a word character or whitespace
+  return input.toLowerCase().replace(/[^\w\s]/g, '');
 }
 
 export function escapeSpecialCharacters(text: string): string {
@@ -272,7 +282,7 @@ export interface ChatMessage {
 export interface ChatResponse {
   userMessage: ChatMessage;
   tokens?: string[],
-  mappedUserAction?: Action;
+  mappedUserActions?: Action[];
   botReplyActions?: Action[];
   botReplyMessage: ChatMessage,
   needLearning?: boolean,
