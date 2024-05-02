@@ -35,7 +35,7 @@ export class SmartyService {
     );
   }
 
-  greetingKeys: string[] = ['say-hi'];
+  greetingKeys: string[] = ['say-hi', 'ask-name'];
   ignoredKeysFromRandomSuggestions: string[] = [...this.greetingKeys, 'tell-name', 'ask-to-help', 'tell-a-joke'];
   farewellActionKeys = ['say-bye', 'say-later'];
   getNextSuggestions(): string[] {
@@ -56,7 +56,7 @@ export class SmartyService {
       return getRandomElementsAndShuffle(keywords);
     }
 
-    const responseKeywords = this.latestResponse.botReplyActions?.flatMap(action => action.keywords) ?? [];
+    const responseKeywords = this.latestResponse.botReplyActions?.flatMap(action => action.reactions).flatMap(reaction => reaction.keywords) ?? [];
     const randomReactionSuggestions = getRandomElementsAndShuffle(responseKeywords);
     const randomKeywords = this.actions
       .filter(action => !this.ignoredKeysFromRandomSuggestions.includes(action.key))
@@ -97,7 +97,7 @@ export class SmartyService {
     this.latestResponse.mappedUserActions = [];
     tokens.forEach(token => {
       const matchingAction = this.actions.find(action =>
-        action.keywords.some(trigger => containsExactPhrase(token, trigger))
+        action.keywords.some(keyword => containsExactPhrase(token, keyword))
       );
       const confusedAction = this.actions.find(action => action.key == 'say-im-confused');
       this.latestResponse.botReplyActions = [];
