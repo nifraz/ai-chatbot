@@ -39,12 +39,7 @@ export class SmartyService {
   ignoredKeysFromRandomSuggestions: string[] = [...this.greetingKeys, 'tell-name', 'ask-to-help', 'tell-a-joke'];
   farewellActionKeys = ['say-bye', 'say-later'];
   getNextSuggestions(): string[] {
-    const hasFarewellAction = this.latestResponse.botReplyActions?.some(action => this.farewellActionKeys.includes(action.key));
-    if (hasFarewellAction) {
-      this.latestResponse.isUserLeft = true;
-    }
-
-    if (!this.chatHistory.length || hasFarewellAction) {
+      if (!this.chatHistory.length) {
       const keywords = this.actions.find(action => action.key == 'tell-name')?.keywords;
       return getRandomElementsAndShuffle(keywords);
     }
@@ -68,7 +63,7 @@ export class SmartyService {
   getNextResponse(userMessage: ChatMessage): ChatResponse {
     this.latestResponse = {
       userMessage: userMessage,
-      botReplyMessage: { owner: Owner.Smarty, nickname: Owner[Owner.Smarty].toLowerCase() },
+      botReplyMessage: { owner: Owner.Smarty, nickname: Owner[Owner.Smarty] },
       suggestions: [],
     }
 
@@ -83,13 +78,17 @@ export class SmartyService {
       this.latestResponse.tokens = userMessage.text.split(/[.?!]\s*/);
 
       this.matchTokensToActions(this.latestResponse.tokens);
-      return this.buildResponse();
+      const response = this.buildResponse();
+
+      const hasFarewellAction = this.latestResponse.botReplyActions?.some(action => this.farewellActionKeys.includes(action.key));
+      if (hasFarewellAction) {
+        this.latestResponse.isUserLeft = true;
+        this.storedHistory.set(userMessage.nickname ?? '', this.chatHistory);
+        this.chatHistory = [];
+      }
+      return response;
     }
 
-    if (this.latestResponse.isUserLeft) {
-      this.storedHistory.set(userMessage.nickname ?? '', this.chatHistory);
-      this.chatHistory = [];
-    }
     return this.latestResponse;
   }
 
@@ -99,13 +98,19 @@ export class SmartyService {
       const matchingAction = this.actions.find(action =>
         action.keywords.some(keyword => containsExactPhrase(token, keyword))
       );
+      const tellNameAction = this.actions.find(action => action.key == 'tell-name');
       const confusedAction = this.actions.find(action => action.key == 'say-im-confused');
+      
       this.latestResponse.botReplyActions = [];
-
       let mappedReactions: Action[] = [];
+      
       if (matchingAction) {
         this.latestResponse.mappedUserActions?.push(matchingAction);
         mappedReactions = getRandomElementsAndShuffle(matchingAction.reactions, getRandomIntInclusive(1, 2));
+      }
+      else if (!this.chatHistory.length && tellNameAction) {
+        this.latestResponse.mappedUserActions?.push(tellNameAction);
+        mappedReactions = getRandomElementsAndShuffle(tellNameAction.reactions, getRandomIntInclusive(1, 2));
       }
       else if (confusedAction) {
         mappedReactions = [confusedAction];
