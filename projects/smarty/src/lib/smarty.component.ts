@@ -51,6 +51,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   ) {
 
   }
+
   ngOnInit(): void {
     const loadingMessage = this.addNewMessage({ text: `Please wait while we're loading things up for you...`, owner: Owner.System });
     this.isLoading = true;
@@ -100,7 +101,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
 
   saveNickname(input: string): void {
     const regex = /^[a-zA-Z0-9]{3,8}$/;
-    this.currentUsername = regex.test(input) ? input.toLowerCase() : 'potato';
+    this.currentUsername = regex.test(input) ? input.toLowerCase() : 'stranger';
     this.suggestions = [];
   }
 

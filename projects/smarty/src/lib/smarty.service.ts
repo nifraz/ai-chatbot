@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import Fuse, { IFuseOptions } from 'fuse.js';
 import { Guid } from 'guid-typescript';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
@@ -10,7 +11,7 @@ import { tap } from 'rxjs/operators';
 export class SmartyService {
   private chatbotDataUrl: string = 'https://raw.githubusercontent.com/nifraz/data/master/chatbotData.json';
   private actions: Action[] = [];
-
+  
   private latestResponse: ChatResponse = {
     userMessage: { owner: Owner.User },
     botReplyMessage: { owner: Owner.Smarty },
@@ -18,8 +19,19 @@ export class SmartyService {
   };
   private chatHistory: ChatResponse[] = [];
   private storedHistory: Map<string, ChatResponse[]> = new Map<string, ChatResponse[]>();
+  
+  private static readonly THRESHOLD: number = 0.2;
+  private static readonly MAX_THRESHOLD: number = 0.5;
+  private fuseOptions: IFuseOptions<Action> = {
+    keys: ["keywords"],
+    includeScore: true,
+    threshold: SmartyService.MAX_THRESHOLD,
+  };
+  private fuse: Fuse<Action> = new Fuse(this.actions, this.fuseOptions);
 
-  constructor(private http: HttpClient) { }
+  constructor(private http: HttpClient) { 
+
+  }
 
   reloadChatbotData(): Observable<ChatbotData> {
     return this.http.get<ChatbotData>(this.chatbotDataUrl).pipe(
@@ -30,34 +42,43 @@ export class SmartyService {
             action.followUps = this.actions.filter(act => action.followUpKeys.some(key => key == act.key));
             action.reactions = this.actions.filter(act => action.reactionKeys.some(key => key == act.key));
           });
+          const fuseActions = this.actions.filter(action => action.key != 'tell-name')
+          this.fuse = new Fuse(fuseActions, this.fuseOptions);
         }
       })
     );
   }
 
-  greetingKeys: string[] = ['say-hi', 'ask-name'];
-  ignoredKeysFromRandomSuggestions: string[] = [...this.greetingKeys, 'tell-name', 'ask-to-help', 'tell-a-joke'];
+  greetingActionKeys: string[] = ['say-hi', 'ask-name'];
   farewellActionKeys = ['say-bye', 'say-later'];
+  ignoredRandomActionKeys: string[] = [...this.greetingActionKeys, 'tell-name', 'ask-to-help', 'tell-a-joke'];
   getNextSuggestions(): string[] {
-      if (!this.chatHistory.length) {
+    if (!this.chatHistory.length) {
       const keywords = this.actions.find(action => action.key == 'tell-name')?.keywords;
       return getRandomElementsAndShuffle(keywords);
     }
-
+    
+    let focusedKeywords: string[] = [];
     if (this.chatHistory.length == 1) {
-      const keywords = this.actions
-        .filter(action => this.greetingKeys.includes(action.key))
+      focusedKeywords = this.actions
+        .filter(action => this.greetingActionKeys.includes(action.key))
         .flatMap(action => action.keywords);
-      return getRandomElementsAndShuffle(keywords);
     }
-
-    const responseKeywords = this.latestResponse.botReplyActions?.flatMap(action => action.reactions).flatMap(reaction => reaction.keywords) ?? [];
-    const randomReactionSuggestions = getRandomElementsAndShuffle(responseKeywords);
+    else if (this.chatHistory.length >= 5) {
+      focusedKeywords = this.actions
+        .filter(action => this.farewellActionKeys.includes(action.key))
+        .flatMap(action => action.keywords);
+    }
+    else {
+      focusedKeywords = this.latestResponse.botReplyActions?.flatMap(action => action.reactions).flatMap(reaction => reaction.keywords) ?? [];
+    }
+    const randomFocusedSuggestions = getRandomElementsAndShuffle(focusedKeywords);
+    
     const randomKeywords = this.actions
-      .filter(action => !this.ignoredKeysFromRandomSuggestions.includes(action.key))
+      .filter(action => !this.ignoredRandomActionKeys.includes(action.key))
       .flatMap(action => action.keywords);
     const randomSuggestions = getRandomElementsAndShuffle(randomKeywords);
-    return getRandomElementsAndShuffle([...randomReactionSuggestions, ...randomSuggestions]);
+    return getRandomElementsAndShuffle([...randomFocusedSuggestions, ...randomSuggestions]);
   }
 
   getNextResponse(userMessage: ChatMessage): ChatResponse {
@@ -67,15 +88,9 @@ export class SmartyService {
       suggestions: [],
     }
 
-    // if (!this.chatHistory.length) {
-    //   const phrases = this.actions.find(action => action.key == 'tell-name')?.phrases ?? ['I’m{self}.'];
-    //   const randomPhrase = getRandomElement(phrases);
-    //   userMessage.text = this.replaceName(randomPhrase, userMessage.nickname, '{self}');
-    // }
-
     if (userMessage.text) {
       this.latestResponse.userMessage = userMessage;
-      this.latestResponse.tokens = userMessage.text.split(/[.?!]\s*/);
+      this.latestResponse.tokens = userMessage.text.split(/[.?!]\s*/).filter(token => token);
 
       this.matchTokensToActions(this.latestResponse.tokens);
       const response = this.buildResponse();
@@ -95,33 +110,42 @@ export class SmartyService {
   matchTokensToActions(tokens: string[]): void {
     this.latestResponse.mappedUserActions = [];
     tokens.forEach(token => {
-      const matchingAction = this.actions.find(action =>
-        action.keywords.some(keyword => containsExactPhrase(token, keyword))
-      );
+      let matchingReactions: Action[] = [];
       const tellNameAction = this.actions.find(action => action.key == 'tell-name');
       const confusedAction = this.actions.find(action => action.key == 'say-im-confused');
-      
-      this.latestResponse.botReplyActions = [];
-      let mappedReactions: Action[] = [];
-      
-      if (matchingAction) {
-        this.latestResponse.mappedUserActions?.push(matchingAction);
-        mappedReactions = getRandomElementsAndShuffle(matchingAction.reactions, getRandomIntInclusive(1, 2));
-      }
-      else if (!this.chatHistory.length && tellNameAction) {
+
+      if (!this.chatHistory.length && tellNameAction) {
         this.latestResponse.mappedUserActions?.push(tellNameAction);
-        mappedReactions = getRandomElementsAndShuffle(tellNameAction.reactions, getRandomIntInclusive(1, 2));
+        matchingReactions = tellNameAction.reactions;
       }
       else if (confusedAction) {
-        mappedReactions = [confusedAction];
-      }
+        const fuseResults = this.fuse.search(token);
+        const bestMatchingResult = fuseResults[0];
 
-      mappedReactions.forEach(element => {
-        if (!this.latestResponse.botReplyActions?.some(action => action.key == element.key)) {
-          this.latestResponse.botReplyActions?.push(element);
+        if (bestMatchingResult && bestMatchingResult.score) {
+          if (bestMatchingResult.score <= SmartyService.THRESHOLD) {
+            const matchingAction = bestMatchingResult.item;
+            this.latestResponse.mappedUserActions?.push(matchingAction);
+            matchingReactions = matchingAction.reactions;
+          }
+          else {
+            matchingReactions = [confusedAction];
+            this.latestResponse.suggestions = getRandomElementsAndShuffle(fuseResults.map(result => result.item).flatMap(action => action.keywords));
+          }
         }
-      });
-      const mappedFollowUps = getRandomElementsAndShuffle(mappedReactions.flatMap(reaction => reaction.followUps), getRandomIntInclusive(1, 2));
+        else {
+          matchingReactions = [confusedAction];
+        }
+      }
+      
+      this.latestResponse.botReplyActions = [];
+      const mappedReaction = getRandomElement(matchingReactions);
+
+      if (mappedReaction && !this.latestResponse.botReplyActions?.some(action => action.key == mappedReaction.key)) {
+        this.latestResponse.botReplyActions?.push(mappedReaction);
+      }
+      
+      const mappedFollowUps = getRandomElementsAndShuffle(matchingReactions.flatMap(reaction => reaction.followUps), getRandomIntInclusive(1, 2));
       mappedFollowUps.forEach(element => {
         if (!this.latestResponse.botReplyActions?.some(action => action.key == element.key)) {
           this.latestResponse.botReplyActions?.push(element);
@@ -137,7 +161,7 @@ export class SmartyService {
       this.latestResponse.botReplyActions?.forEach(action => {
         for (let index = 0; index < 3; index++) {
           const mappedPhrase = getRandomElement(action.phrases);
-          if (!responseText.includes(mappedPhrase)) {
+          if (mappedPhrase && !responseText.includes(mappedPhrase)) {
             responseText += mappedPhrase + " ";
             break;
           }
@@ -160,7 +184,7 @@ export class SmartyService {
     this.latestResponse.botReplyMessage.text = this.replaceName(this.latestResponse.botReplyMessage.text, this.latestResponse.botReplyMessage.nickname, '{self}', true);
     this.latestResponse.botReplyMessage.text = this.replaceName(this.latestResponse.botReplyMessage.text, this.latestResponse.userMessage.nickname, '{target}');
     this.chatHistory.push(this.latestResponse);
-    this.latestResponse.suggestions = this.getNextSuggestions();
+    this.latestResponse.suggestions = this.latestResponse.suggestions.length ? this.latestResponse.suggestions : this.getNextSuggestions();
     return this.latestResponse;
   }
 
@@ -191,14 +215,17 @@ export class SmartyService {
 
   getNameReplacement(name: string | undefined, isImportant: boolean): string {
     if (name && (isImportant || !this.chatHistory.length || tossCoin())) {
-      return (tossCoin() ? ',' : '') + ` ${name}`;
+      return ` ${name}`;
     }
     return '';
   }
 
 }
 
-export function getRandomElement<T>(array: T[]): T {
+export function getRandomElement<T>(array: T[]): T | undefined {
+  if (!array.length) {
+    return undefined;
+  }
   return array[getRandomIndex(array.length)];
 }
 
