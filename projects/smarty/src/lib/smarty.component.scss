@@ -1,3 +1,36 @@
+@keyframes appear {
+  0% {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.profile {
+  animation: appear 0.3s ease-out;
+}
+
+@keyframes popout {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  80% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.message-content {
+  animation: popout 0.5s ease-out;
+}
+
 .chat-container {
   display: flex;
   flex-direction: column;

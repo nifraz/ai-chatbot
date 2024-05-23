@@ -18,14 +18,15 @@
     <div class="chat-body p-2" #chatBody>
         <div *ngFor="let message of messages; let i = index" class="message"
             class="{{ Owner[message.owner].toLowerCase() }}">
-            <div *ngIf="message.owner != Owner.System" class="profile mb-auto">
+            <div *ngIf="message.owner != Owner.System" class="profile mb-auto" [ngClass]="{'appear': i === messages.length - 1}">
                 <img src="{{ 'assets/images/' + Owner[message.owner].toLowerCase() + '.jpg' }}" alt="Profile">
                 <span class="username">{{ message.nickname }}</span>
             </div>
             <div class="message-content px-2 py-1" [ngClass]="{
-                'badge fw-light text-center text-wrap lh-sm mx-auto': message.owner == Owner.System,
-                'text-warning': message.owner == Owner.System,
-                'text-danger': message.isError,
+                    'badge fw-light text-center text-wrap lh-sm mx-auto': message.owner == Owner.System,
+                    'text-warning': message.owner == Owner.System,
+                    'text-danger': message.isError,
+                    'popout': i == messages.length - 1
                 }">
                 <div *ngIf="!message.isLoading; else loadingTemplate" #messageBox>
                     <span>{{ message.text }}</span>

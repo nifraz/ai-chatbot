@@ -307,6 +307,7 @@ export interface ChatMessage {
   nickname?: string;
   state?: State,
   isLoading?: boolean;
+  isTyping?: boolean;
   isError?: boolean;
   seen?: boolean;
 }
