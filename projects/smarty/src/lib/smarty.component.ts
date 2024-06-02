@@ -1,4 +1,4 @@
-import { AfterViewChecked, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { AfterViewChecked, Component, ElementRef, NgZone, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -13,6 +13,8 @@ import { ChatMessage, ChatResponse, Owner, SmartyService, tossCoin } from './sma
 import { LoadingDotsComponent } from './loading-dots/loading-dots.component';
 import { SuggestionsComponent } from "./suggestions/suggestions.component";
 import { Guid } from 'guid-typescript';
+
+declare var webkitSpeechRecognition: any;
 
 @Component({
   selector: 'smarty',
@@ -44,10 +46,14 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   isLoading: boolean = false; // State to control loading animation
   // isError: boolean = false;
   Owner = Owner;
+  isRecording: boolean = false;
+  recognition: any;
+  isSpeechRecognitionSupported: boolean = true;
 
   constructor(
     public dialog: MatDialog,
-    private smartyService: SmartyService
+    private smartyService: SmartyService,
+    private ngZone: NgZone
   ) {
 
   }
@@ -69,6 +75,66 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
         loadingMessage.text = `Oops! Something went wrong. Please refresh the page. If the problem continues, contact support by opening Help icon in top right corner. We apologize for any inconvenience.`;
       },
     });
+    this.checkSpeechRecognitionSupport();
+  }
+
+  checkSpeechRecognitionSupport() {
+    if ('webkitSpeechRecognition' in window) {
+      this.initializeVoiceRecognition();
+    } else {
+      this.isSpeechRecognitionSupported = false;
+      console.warn("Speech recognition is not supported in this browser.");
+    }
+  }
+
+  initializeVoiceRecognition() {
+    this.recognition = new webkitSpeechRecognition();
+    this.recognition.continuous = true; // Allow continuous recognition
+    this.recognition.interimResults = true; // Enable interim results
+    this.recognition.lang = 'en-US';
+  
+    this.recognition.onresult = (event: any) => {
+      let interimTranscript = '';
+      let finalTranscript = '';
+  
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+          this.recognition.stop(); // Stop recognition on final result
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+  
+      this.ngZone.run(() => {
+        this.userInput = interimTranscript || finalTranscript;
+        if (finalTranscript) {
+          this.processInput(this.userInput);
+        }
+      });
+    };
+  
+    this.recognition.onerror = (event: any) => {
+      console.error(event.error);
+      // clearTimeout(this.stopTimeout); // Clear timeout on error
+    };
+  
+    this.recognition.onend = () => {
+      this.ngZone.run(() => {
+        this.isRecording = false;
+      });
+      // clearTimeout(this.stopTimeout); // Clear timeout on end
+    };
+  }
+
+  toggleRecording() {
+    if (this.isRecording) {
+      this.recognition.stop();
+    } else {
+      this.isRecording = true;
+      this.recognition.start();
+    }
   }
 
   readNickname(): void {

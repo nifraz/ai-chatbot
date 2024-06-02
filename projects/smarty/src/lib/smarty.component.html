@@ -56,9 +56,17 @@
 
         <suggestions [items]="suggestions" (click)="processInput($event)"></suggestions>
         <div class="d-flex">
-            <input type="text" class="form-control rounded-0" [placeholder]="isLoading ? 'Please wait...' : 
+            <input type="text" class="form-control rounded-0" [placeholder]="isLoading ? 'Please wait...' :
+                    isRecording ? 'Speak Now...' : 
                     currentUsername ? 'Message Smarty...' : 'Enter Your Nickname...'" [(ngModel)]="userInput"
                 (keyup.enter)="processInput(userInput)" [disabled]="isLoading">
+            <button *ngIf="isSpeechRecognitionSupported && currentUsername" class="btn btn-secondary rounded-0 d-flex align-items-center" (click)="toggleRecording()" [disabled]="isLoading"
+                [ngClass]="{ 
+                    'btn-danger': isRecording,
+                    'btn-secondary': !isRecording,
+                }">
+                <mat-icon [ngClass]="{ 'blinking': isRecording }">{{ isRecording ? 'stop' : 'mic' }}</mat-icon>
+            </button>
             <button class="btn btn-primary rounded-0 d-flex align-items-center" (click)="processInput(userInput)" [disabled]="isLoading">
                 <mat-icon>send</mat-icon>
             </button>
