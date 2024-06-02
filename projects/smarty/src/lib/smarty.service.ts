@@ -11,6 +11,7 @@ import { tap } from 'rxjs/operators';
 export class SmartyService {
   private chatbotDataUrl: string = 'https://raw.githubusercontent.com/nifraz/data/master/chatbotData.json';
   private actions: Action[] = [];
+  private knowledgeBase: Knowledge[] = [];
   
   private latestResponse: ChatResponse = {
     userMessage: { owner: Owner.User },
@@ -22,12 +23,18 @@ export class SmartyService {
   
   private static readonly THRESHOLD: number = 0.2;
   private static readonly MAX_THRESHOLD: number = 0.5;
-  private fuseOptions: IFuseOptions<Action> = {
+  private actionFuseOptions: IFuseOptions<Action> = {
     keys: ["keywords"],
     includeScore: true,
     threshold: SmartyService.MAX_THRESHOLD,
   };
-  private fuse: Fuse<Action> = new Fuse(this.actions, this.fuseOptions);
+  private knowledgeFuseOptions: IFuseOptions<Knowledge> = {
+    keys: ["triggers"],
+    includeScore: true,
+    threshold: SmartyService.MAX_THRESHOLD,
+  };
+  private actionFuse: Fuse<Action> = new Fuse(this.actions, this.actionFuseOptions);
+  private knowledgeFuse: Fuse<Knowledge> = new Fuse(this.knowledgeBase, this.knowledgeFuseOptions);
 
   constructor(private http: HttpClient) { 
 
@@ -43,7 +50,10 @@ export class SmartyService {
             action.reactions = this.actions.filter(act => action.reactionKeys.some(key => key == act.key));
           });
           const fuseActions = this.actions.filter(action => action.key != 'tell-name')
-          this.fuse = new Fuse(fuseActions, this.fuseOptions);
+          this.actionFuse = new Fuse(fuseActions, this.actionFuseOptions);
+
+          this.knowledgeBase = data.knowledgeBase;
+          this.knowledgeFuse = new Fuse(this.knowledgeBase, this.knowledgeFuseOptions);
         }
       })
     );
@@ -72,7 +82,10 @@ export class SmartyService {
     else {
       focusedKeywords = this.latestResponse.botReplyActions?.flatMap(action => action.reactions).flatMap(reaction => reaction.keywords) ?? [];
     }
-    const randomFocusedSuggestions = getRandomElementsAndShuffle(focusedKeywords);
+
+    const knowledgeSuggestions = this.knowledgeBase
+      .flatMap(knowledge => knowledge.triggers);
+    const randomFocusedSuggestions = getRandomElementsAndShuffle([...knowledgeSuggestions, ...focusedKeywords]);
     
     const randomKeywords = this.actions
       .filter(action => !this.ignoredRandomActionKeys.includes(action.key))
@@ -119,19 +132,26 @@ export class SmartyService {
         matchingReactions = tellNameAction.reactions;
       }
       else if (confusedAction) {
-        const fuseResults = this.fuse.search(token);
-        const bestMatchingResult = fuseResults[0];
+        const actionFuseResults = this.actionFuse.search(token);
+        const bestMatchingActionResult = actionFuseResults[0];
 
-        if (bestMatchingResult && bestMatchingResult.score) {
-          if (bestMatchingResult.score <= SmartyService.THRESHOLD) {
-            const matchingAction = bestMatchingResult.item;
-            this.latestResponse.mappedUserActions?.push(matchingAction);
-            matchingReactions = matchingAction.reactions;
-          }
-          else {
-            matchingReactions = [confusedAction];
-            this.latestResponse.suggestions = getRandomElementsAndShuffle(fuseResults.map(result => result.item).flatMap(action => action.keywords));
-          }
+        const knowledgeFuseResults = this.knowledgeFuse.search(token);
+        const bestMatchingKnowledgeResult = knowledgeFuseResults[0];
+
+        if (bestMatchingActionResult && bestMatchingActionResult.score && bestMatchingActionResult.score <= SmartyService.THRESHOLD) {
+          const matchingAction = bestMatchingActionResult.item;
+          this.latestResponse.mappedUserActions?.push(matchingAction);
+          matchingReactions = matchingAction.reactions;
+        }
+        else if (bestMatchingKnowledgeResult && bestMatchingKnowledgeResult.score && bestMatchingKnowledgeResult.score <= SmartyService.THRESHOLD) {
+          const matchingKnowledge = bestMatchingKnowledgeResult.item;
+          this.latestResponse.mappedKnowledge = matchingKnowledge;
+        }
+        else if (actionFuseResults.length || knowledgeFuseResults.length) {
+          matchingReactions = [confusedAction];
+          const actionSuggestions = actionFuseResults.map(result => result.item).flatMap(action => action.keywords);
+          const knowledgeSuggestions = knowledgeFuseResults.map(result => result.item).flatMap(knowledge => knowledge.triggers);
+          this.latestResponse.suggestions = getRandomElementsAndShuffle([...actionSuggestions, ...knowledgeSuggestions]);
         }
         else {
           matchingReactions = [confusedAction];
@@ -145,12 +165,14 @@ export class SmartyService {
         this.latestResponse.botReplyActions?.push(mappedReaction);
       }
       
-      const mappedFollowUps = getRandomElementsAndShuffle(matchingReactions.flatMap(reaction => reaction.followUps), getRandomIntInclusive(1, 2));
-      mappedFollowUps.forEach(element => {
-        if (!this.latestResponse.botReplyActions?.some(action => action.key == element.key)) {
-          this.latestResponse.botReplyActions?.push(element);
-        }
-      });
+      if (tossCoin()) {
+        const mappedFollowUps = getRandomElementsAndShuffle(matchingReactions.flatMap(reaction => reaction.followUps), 1);
+        mappedFollowUps.forEach(followUp => {
+          if (!this.latestResponse.botReplyActions?.some(action => action.key == followUp.key)) {
+            this.latestResponse.botReplyActions?.push(followUp);
+          }
+        });
+      }
     });
   }
 
@@ -168,6 +190,9 @@ export class SmartyService {
         }
       });
 
+      if (this.latestResponse.mappedKnowledge) {
+        responseText += this.latestResponse.mappedKnowledge.response + " ";
+      }
       if (responseText.trim()) {
         this.latestResponse.botReplyMessage.text = responseText.trim();
         // const latestAction = this.latestResponse.actionMappings[this.latestResponse.actionMappings.length - 1].action;
@@ -176,7 +201,7 @@ export class SmartyService {
         const isQuestion = this.latestResponse.userMessage?.text?.includes('?');
         if (isQuestion) {
           this.latestResponse.botReplyMessage.text = `Can you tell me the answer? I'll remember that for you.`;
-          this.latestResponse.needLearning = true;
+          this.latestResponse.isAwaitingAnswer = true;
         }
       }
     }
@@ -284,7 +309,8 @@ export function removeDuplicates<T>(array: T[]): T[] {
 }
 
 export interface ChatbotData {
-  actions: Action[];
+  actions: Action[],
+  knowledgeBase: Knowledge[],
 }
 
 export interface Action {
@@ -297,6 +323,11 @@ export interface Action {
   followUps: Action[],
   reactionKeys: string[],
   reactions: Action[],
+}
+
+export interface Knowledge {
+  triggers: string[],
+  response: string,
 }
 
 export interface ChatMessage {
@@ -318,9 +349,10 @@ export interface ChatResponse {
   mappedUserActions?: Action[];
   botReplyActions?: Action[];
   botReplyMessage: ChatMessage,
-  needLearning?: boolean,
+  isAwaitingAnswer?: boolean,
   suggestions: string[],
   isUserLeft?: boolean;
+  mappedKnowledge?: Knowledge,
 }
 
 export enum Owner {
