@@ -49,6 +49,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   isRecording: boolean = false;
   recognition: any;
   isSpeechRecognitionSupported: boolean = true;
+  isVoiceEnabled: boolean = false;
 
   constructor(
     public dialog: MatDialog,
@@ -137,6 +138,39 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
     }
   }
 
+  speakText(text: string, callback: (word: string) => void) {
+    if ('speechSynthesis' in window) {
+      const speech = new SpeechSynthesisUtterance(text);
+      speech.onboundary = (event: SpeechSynthesisEvent) => {
+        if (event.name === 'word') {
+          const word = text.substring(event.charIndex, event.charIndex + event.charLength);
+          callback(word);
+        }
+      };
+      window.speechSynthesis.speak(speech);
+    } else {
+      console.warn('Text-to-Speech is not supported in this browser.');
+    }
+  }
+
+  typewriteText(text: string, element: HTMLElement, delay: number = 50, callback?: () => void) {
+    element.innerHTML = ''; // Clear the element
+    let index = 0;
+    let words = text.split(' ');
+  
+    const typewrite = () => {
+      if (index < words.length) {
+        element.innerHTML += words[index] + ' ';
+        index++;
+        setTimeout(typewrite, delay);
+      } else if (callback) {
+        callback();
+      }
+    };
+  
+    typewrite();
+  }
+
   readNickname(): void {
     this.currentUsername = '';
     this.addNewMessage({
@@ -200,28 +234,37 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
     const response = this.smartyService.getNextResponse(userMessage);
 
     const loadingMessage = response.botReplyMessage;
+    const botReplyMessageText = response.botReplyMessage.text ?? '';
+    loadingMessage.text = '';
     loadingMessage.seen = true;
     loadingMessage.isLoading = true;
-    
-    // const loadingMessage: ChatMessage = {
-    //   owner: Owner.Smarty,
-    //   seen: true,
-    //   isLoading: true // Mark as loading
-    // };
 
     setTimeout(() => {
       this.addNewMessage(loadingMessage);
     }, 300);
 
     setTimeout(() => {
-      // const response = this.smartyService.getNextResponse(userMessage);
       loadingMessage.seen = false;
       loadingMessage.isLoading = false;
       this.suggestions = response.botSuggestions;
+      const messageElement = document.querySelector(`#message-${loadingMessage.id}`) as HTMLElement;
+      if (this.isVoiceEnabled) {
+        messageElement.innerHTML = '';
+        this.speakText(botReplyMessageText, (word) => {
+          this.ngZone.run(() => {
+            messageElement.innerHTML += word + ' ';
+          });
+        });
+      }
+      else {
+        this.typewriteText(botReplyMessageText, messageElement, 100)
+      }
       if (response.isUserLeft) {
         this.readNickname();
       }
     }, 1500);
+
+    // Get the newly added bot message element
   }
 
   scrollToBottom(): void {

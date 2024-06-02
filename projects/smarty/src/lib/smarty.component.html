@@ -8,9 +8,14 @@
                 <span class="visually-hidden">beta version</span>
             </span>
         </div>
-        <button class="btn-sm rounded-circle border-0">
-            <mat-icon class="mt-1" (click)="openHelpDialog()">help_outline</mat-icon>
-        </button>
+        <div>
+            <button class="btn-sm rounded-circle border-0" (click)="isVoiceEnabled = !isVoiceEnabled">
+                <mat-icon class="mt-1">{{ isVoiceEnabled ? 'volume_up' : 'volume_off' }}</mat-icon>
+            </button>
+            <button class="btn-sm rounded-circle border-0 ms-1" (click)="openHelpDialog()">
+                <mat-icon class="mt-1">help_outline</mat-icon>
+            </button>
+        </div>
     </div>
 
     <mat-progress-bar *ngIf="isLoading" mode="indeterminate"></mat-progress-bar>
@@ -28,12 +33,8 @@
                     'text-danger': message.isError,
                     'popout': i == messages.length - 1
                 }">
-                <div *ngIf="!message.isLoading; else loadingTemplate" #messageBox>
-                    <span>{{ message.text }}</span>
-                </div>
-                <ng-template #loadingTemplate>
-                    <loading-dots></loading-dots>
-                </ng-template>
+                <span [id]="'message-' + message.id">{{ message.owner == Owner.Smarty ? '' : message.text }}</span>
+                <loading-dots *ngIf="message.isLoading"></loading-dots>
                 <div *ngIf="!message.isLoading && message.owner != Owner.System" class="message-time">
                     <small class="text-body-secondary">{{ message.time | date:'shortTime' }}</small>
                 </div>
