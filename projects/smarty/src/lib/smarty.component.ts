@@ -151,7 +151,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
       // const response = this.smartyService.getNextResponse(userMessage);
       loadingMessage.seen = false;
       loadingMessage.isLoading = false;
-      this.suggestions = response.suggestions;
+      this.suggestions = response.botSuggestions;
       if (response.isUserLeft) {
         this.readNickname();
       }

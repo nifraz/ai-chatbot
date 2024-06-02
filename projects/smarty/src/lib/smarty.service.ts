@@ -16,7 +16,7 @@ export class SmartyService {
   private latestResponse: ChatResponse = {
     userMessage: { owner: Owner.User },
     botReplyMessage: { owner: Owner.Smarty },
-    suggestions: [],
+    botSuggestions: [],
   };
   private chatHistory: ChatResponse[] = [];
   private storedHistory: Map<string, ChatResponse[]> = new Map<string, ChatResponse[]>();
@@ -27,11 +27,13 @@ export class SmartyService {
     keys: ["keywords"],
     includeScore: true,
     threshold: SmartyService.MAX_THRESHOLD,
+    includeMatches: true,
   };
   private knowledgeFuseOptions: IFuseOptions<Knowledge> = {
     keys: ["triggers"],
     includeScore: true,
     threshold: SmartyService.MAX_THRESHOLD,
+    includeMatches: true,
   };
   private actionFuse: Fuse<Action> = new Fuse(this.actions, this.actionFuseOptions);
   private knowledgeFuse: Fuse<Knowledge> = new Fuse(this.knowledgeBase, this.knowledgeFuseOptions);
@@ -91,14 +93,14 @@ export class SmartyService {
       .filter(action => !this.ignoredRandomActionKeys.includes(action.key))
       .flatMap(action => action.keywords);
     const randomSuggestions = getRandomElementsAndShuffle(randomKeywords);
-    return getRandomElementsAndShuffle([...randomFocusedSuggestions, ...randomSuggestions]);
+    return getRandomElementsAndShuffle(this.removeUsedSuggestions([...randomFocusedSuggestions, ...randomSuggestions]));
   }
 
   getNextResponse(userMessage: ChatMessage): ChatResponse {
     this.latestResponse = {
       userMessage: userMessage,
       botReplyMessage: { owner: Owner.Smarty, nickname: Owner[Owner.Smarty] },
-      suggestions: [],
+      botSuggestions: [],
     }
 
     if (userMessage.text) {
@@ -120,16 +122,41 @@ export class SmartyService {
     return this.latestResponse;
   }
 
+  removeUsedSuggestions(suggestions: string[]): string[] {
+    const usedActionKeywords = this.chatHistory
+      .flatMap(response => response.userKeywords);
+    const usedKnowledgeTriggers = this.chatHistory
+      .filter(response => response.botKnowledge)
+      .flatMap(response => response.botKnowledge?.triggers);
+    return suggestions.filter(suggestion => ![...usedActionKeywords, ...usedKnowledgeTriggers].includes(suggestion));
+  }
+
   matchTokensToActions(tokens: string[]): void {
-    this.latestResponse.mappedUserActions = [];
+    this.latestResponse.userActions = [];
     tokens.forEach(token => {
       let matchingReactions: Action[] = [];
       const tellNameAction = this.actions.find(action => action.key == 'tell-name');
       const confusedAction = this.actions.find(action => action.key == 'say-im-confused');
+      const bestMatchingAction = this.actions.find(action =>
+        action.keywords.some(keyword => containsExactPhrase(token, keyword))
+      );
+      const bestMatchingKnowledge = this.knowledgeBase.find(knowledge =>
+        knowledge.triggers.some(trigger => containsExactPhrase(token, trigger))
+      );
 
+      this.latestResponse.userKeywords = [];
       if (!this.chatHistory.length && tellNameAction) {
-        this.latestResponse.mappedUserActions?.push(tellNameAction);
+        this.latestResponse.userActions?.push(tellNameAction);
         matchingReactions = tellNameAction.reactions;
+      }
+      else if (bestMatchingAction) {
+        this.latestResponse.userKeywords.push(token);
+        this.latestResponse.userActions?.push(bestMatchingAction);
+        matchingReactions = bestMatchingAction.reactions;
+      }
+      else if (bestMatchingKnowledge) {
+        this.latestResponse.botTrigger = token;
+        this.latestResponse.botKnowledge = bestMatchingKnowledge;
       }
       else if (confusedAction) {
         const actionFuseResults = this.actionFuse.search(token);
@@ -139,19 +166,21 @@ export class SmartyService {
         const bestMatchingKnowledgeResult = knowledgeFuseResults[0];
 
         if (bestMatchingActionResult && bestMatchingActionResult.score && bestMatchingActionResult.score <= SmartyService.THRESHOLD) {
+          this.latestResponse.userKeywords.push(token);
           const matchingAction = bestMatchingActionResult.item;
-          this.latestResponse.mappedUserActions?.push(matchingAction);
+          this.latestResponse.userActions?.push(matchingAction);
           matchingReactions = matchingAction.reactions;
         }
         else if (bestMatchingKnowledgeResult && bestMatchingKnowledgeResult.score && bestMatchingKnowledgeResult.score <= SmartyService.THRESHOLD) {
+          this.latestResponse.botTrigger = token;
           const matchingKnowledge = bestMatchingKnowledgeResult.item;
-          this.latestResponse.mappedKnowledge = matchingKnowledge;
+          this.latestResponse.botKnowledge = matchingKnowledge;
         }
         else if (actionFuseResults.length || knowledgeFuseResults.length) {
           matchingReactions = [confusedAction];
           const actionSuggestions = actionFuseResults.map(result => result.item).flatMap(action => action.keywords);
           const knowledgeSuggestions = knowledgeFuseResults.map(result => result.item).flatMap(knowledge => knowledge.triggers);
-          this.latestResponse.suggestions = getRandomElementsAndShuffle([...actionSuggestions, ...knowledgeSuggestions]);
+          this.latestResponse.botSuggestions = getRandomElementsAndShuffle(this.removeUsedSuggestions([...actionSuggestions, ...knowledgeSuggestions]));
         }
         else {
           matchingReactions = [confusedAction];
@@ -190,8 +219,8 @@ export class SmartyService {
         }
       });
 
-      if (this.latestResponse.mappedKnowledge) {
-        responseText += this.latestResponse.mappedKnowledge.response + " ";
+      if (this.latestResponse.botKnowledge) {
+        responseText += this.latestResponse.botKnowledge.response + " ";
       }
       if (responseText.trim()) {
         this.latestResponse.botReplyMessage.text = responseText.trim();
@@ -209,7 +238,7 @@ export class SmartyService {
     this.latestResponse.botReplyMessage.text = this.replaceName(this.latestResponse.botReplyMessage.text, this.latestResponse.botReplyMessage.nickname, '{self}', true);
     this.latestResponse.botReplyMessage.text = this.replaceName(this.latestResponse.botReplyMessage.text, this.latestResponse.userMessage.nickname, '{target}');
     this.chatHistory.push(this.latestResponse);
-    this.latestResponse.suggestions = this.latestResponse.suggestions.length ? this.latestResponse.suggestions : this.getNextSuggestions();
+    this.latestResponse.botSuggestions = this.latestResponse.botSuggestions.length ? this.latestResponse.botSuggestions : this.getNextSuggestions();
     return this.latestResponse;
   }
 
@@ -344,15 +373,18 @@ export interface ChatMessage {
 }
 
 export interface ChatResponse {
-  userMessage: ChatMessage;
+  userMessage: ChatMessage,
   tokens?: string[],
-  mappedUserActions?: Action[];
-  botReplyActions?: Action[];
+  userKeywords?: string[],
+  userActions?: Action[];
+  botReplyActions?: Action[],
   botReplyMessage: ChatMessage,
+  botSuggestions: string[],
+  isUserLeft?: boolean,
+  botTrigger?: string,
+  botKnowledge?: Knowledge,
   isAwaitingAnswer?: boolean,
-  suggestions: string[],
-  isUserLeft?: boolean;
-  mappedKnowledge?: Knowledge,
+  userKnowledge?: Knowledge,
 }
 
 export enum Owner {
