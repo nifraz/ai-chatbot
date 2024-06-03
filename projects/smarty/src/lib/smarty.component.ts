@@ -37,6 +37,7 @@ declare var webkitSpeechRecognition: any;
 export class SmartyComponent implements OnInit, AfterViewChecked {
 
   @ViewChild('chatBody') private chatBody!: ElementRef;
+  usernameRegExp: RegExp = /^[a-zA-Z]{3,8}$/; 
   currentUsername: string = '';
   suggestions: string[] = [];
   messages: ChatMessage[] = [];
@@ -175,7 +176,7 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
     this.currentUsername = '';
     this.addNewMessage({
       owner: Owner.System,
-      text: `Please enter your nickname. It should be 3 to 8 characters long and contain only letters and numbers, with no spaces or special characters.`,
+      text: `Please enter your nickname. It should be 3 to 8 characters long and contain only letters, with no spaces or special characters.`,
     });
     this.suggestions = this.smartyService.getNextSuggestions();
   }
@@ -199,12 +200,6 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
     this.scrollToBottom();
   }
 
-  saveNickname(input: string): void {
-    const regex = /^[a-zA-Z0-9]{3,8}$/;
-    this.currentUsername = regex.test(input) ? input.toLowerCase() : 'stranger';
-    this.suggestions = [];
-  }
-
   processInput(input: string) {
     if (!input || !input.length) {
       return;
@@ -213,7 +208,16 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
     if (this.isLoading || !text) return;
 
     if (!this.currentUsername) {
-      this.saveNickname(text);
+      if (!this.usernameRegExp.test(text)) {
+        this.addNewMessage({
+          owner: Owner.System,
+          text: `Invalid nickname '${text}'. Please make sure your nickname is 3 to 8 characters long, contains only letters, and has no spaces or special characters. Try again.`,
+          isError: true,
+        });
+        return;
+      }
+      this.currentUsername = input.toLowerCase();
+      this.suggestions = [];
     }
     this.sendMessage(text);
   }
