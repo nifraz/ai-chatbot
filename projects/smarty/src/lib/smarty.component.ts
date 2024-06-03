@@ -49,7 +49,8 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   Owner = Owner;
   isRecording: boolean = false;
   recognition: any;
-  isSpeechRecognitionSupported: boolean = true;
+  isSpeechRecognitionSupported: boolean = false;
+  isTextToSpeechSupported: boolean = false;
   isVoiceEnabled: boolean = false;
 
   constructor(
@@ -78,14 +79,35 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
       },
     });
     this.checkSpeechRecognitionSupport();
+    this.checkTextToSpeechSupport();
   }
 
   checkSpeechRecognitionSupport() {
     if ('webkitSpeechRecognition' in window) {
+      this.isSpeechRecognitionSupported = true;
       this.initializeVoiceRecognition();
-    } else {
+    } 
+    else {
       this.isSpeechRecognitionSupported = false;
-      console.warn("Speech recognition is not supported in this browser.");
+      this.addNewMessage({
+        owner: Owner.System,
+        text: `Speech recognition is not supported in this browser.`,
+        isError: true,
+      });
+    }
+  }
+
+  checkTextToSpeechSupport() {
+    if ('speechSynthesis' in window) {
+      this.isTextToSpeechSupported = true;
+    } 
+    else {
+      this.isTextToSpeechSupported = false;
+      this.addNewMessage({
+        owner: Owner.System,
+        text: `Text-to-Speech is not supported in this browser.`,
+        isError: true,
+      });
     }
   }
 
@@ -140,18 +162,14 @@ export class SmartyComponent implements OnInit, AfterViewChecked {
   }
 
   speakText(text: string, callback: (word: string) => void) {
-    if ('speechSynthesis' in window) {
-      const speech = new SpeechSynthesisUtterance(text);
-      speech.onboundary = (event: SpeechSynthesisEvent) => {
-        if (event.name === 'word') {
-          const word = text.substring(event.charIndex, event.charIndex + event.charLength);
-          callback(word);
-        }
-      };
-      window.speechSynthesis.speak(speech);
-    } else {
-      console.warn('Text-to-Speech is not supported in this browser.');
-    }
+    const speech = new SpeechSynthesisUtterance(text);
+    speech.onboundary = (event: SpeechSynthesisEvent) => {
+      if (event.name === 'word') {
+        const word = text.substring(event.charIndex, event.charIndex + event.charLength);
+        callback(word);
+      }
+    };
+    window.speechSynthesis.speak(speech);
   }
 
   typewriteText(text: string, element: HTMLElement, delay: number = 50, callback?: () => void) {

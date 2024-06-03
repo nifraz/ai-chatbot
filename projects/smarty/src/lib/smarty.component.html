@@ -9,7 +9,7 @@
             </span>
         </div>
         <div>
-            <button class="btn-sm rounded-circle border-0" (click)="isVoiceEnabled = !isVoiceEnabled">
+            <button *ngIf="isTextToSpeechSupported" class="btn-sm rounded-circle border-0" (click)="isVoiceEnabled = !isVoiceEnabled">
                 <mat-icon class="mt-1">{{ isVoiceEnabled ? 'volume_up' : 'volume_off' }}</mat-icon>
             </button>
             <button class="btn-sm rounded-circle border-0 ms-1" (click)="openHelpDialog()">
